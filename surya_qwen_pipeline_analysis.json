@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "total_files": 3,
+    "successful_files": 3,
+    "average_file_size_mb": 0.40574391682942706,
+    "total_processing_time": 132.68313908576965,
+    "average_total_time": 44.22771302858988,
+    "average_surya_time": 44.21503496170044,
+    "average_qwen_time": 0.0035339991251627603,
+    "average_postprocessing_time": 8.026758829752604e-06,
+    "average_peak_memory_mb": 4937.595052083333,
+    "max_peak_memory_mb": 5098.546875,
+    "total_text_characters": 6355,
+    "total_extracted_fields": 120
+  },
+  "performance_breakdown": {
+    "surya_percentage": 99.97133456373552,
+    "qwen_percentage": 0.007990463180581588,
+    "postprocessing_percentage": 1.8148708762227676e-05
+  },
+  "detailed_results": [
+    {
+      "file_name": "DEWA.png",
+      "file_size_mb": 0.273,
+      "total_time": 28.508,
+      "surya_ocr_time": 28.495,
+      "qwen_extraction_time": 0.007,
+      "postprocessing_time": 0.0,
+      "peak_memory_mb": 4615.7,
+      "raw_text_length": 1429,
+      "text_lines_count": 76,
+      "extracted_fields_count": 40,
+      "processing_rate_chars_per_sec": 50.1
+    },
+    {
+      "file_name": "SEWA.png",
+      "file_size_mb": 0.394,
+      "total_time": 57.094,
+      "surya_ocr_time": 57.08,
+      "qwen_extraction_time": 0.002,
+      "postprocessing_time": 0.0,
+      "peak_memory_mb": 5098.5,
+      "raw_text_length": 2687,
+      "text_lines_count": 204,
+      "extracted_fields_count": 39,
+      "processing_rate_chars_per_sec": 47.1
+    },
+    {
+      "file_name": "SEWA 2.png",
+      "file_size_mb": 0.551,
+      "total_time": 47.081,
+      "surya_ocr_time": 47.07,
+      "qwen_extraction_time": 0.002,
+      "postprocessing_time": 0.0,
+      "peak_memory_mb": 5098.5,
+      "raw_text_length": 2239,
+      "text_lines_count": 170,
+      "extracted_fields_count": 41,
+      "processing_rate_chars_per_sec": 47.6
+    }
+  ],
+  "timestamp": "2025-07-20T21:38:46.060613",
+  "model_info": {
+    "surya_models": "Detection + Recognition",
+    "qwen_model": "Qwen2.5-VL-3B-Instruct"
+  }
+}
