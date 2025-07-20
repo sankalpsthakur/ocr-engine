@@ -1,0 +1,26 @@
+# Nixpacks configuration for OCR Engine deployment
+
+[phases.setup]
+nixPkgs = ["python310", "gcc", "git", "wget", "glib", "xorg.libSM", "xorg.libXext", "xorg.libXrender"]
+
+[phases.install]
+cmds = [
+    "pip install --upgrade pip",
+    "pip install -r qwen_integration/requirements.txt"
+]
+
+[phases.build]
+cmds = [
+    # Download model weights during build to speed up startup
+    "python -c \"from transformers import AutoTokenizer, AutoModelForCausalLM; print('Downloading Qwen3-0.6B model...'); AutoTokenizer.from_pretrained('Qwen/Qwen3-0.6B', trust_remote_code=True); AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-0.6B', trust_remote_code=True, low_cpu_mem_usage=True)\"",
+    # Create necessary directories
+    "mkdir -p /app/.cache/huggingface"
+]
+
+[start]
+cmd = "uvicorn api.main:app --host 0.0.0.0 --port 8080"
+
+[variables]
+PYTHONUNBUFFERED = "1"
+TRANSFORMERS_CACHE = "/app/.cache/huggingface"
+HF_HOME = "/app/.cache/huggingface"

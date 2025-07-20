@@ -1,0 +1,47 @@
+{
+  "timestamp": "2025-07-20T20:18:17.026358",
+  "configuration": {
+    "device": "cpu",
+    "total_files": 2,
+    "successful_runs": 1
+  },
+  "overall_metrics": {
+    "avg_cer_structured": 87.54,
+    "avg_cer_raw": 15.61,
+    "avg_improvement": -71.93,
+    "avg_confidence": 1.0,
+    "avg_processing_time": 173.18,
+    "files_meeting_target": 0,
+    "success_rate": 0.0,
+    "avg_field_completeness": 1.0
+  },
+  "detailed_results": [
+    {
+      "file": "DEWA.png",
+      "status": "success",
+      "cer_structured": 87.54,
+      "cer_raw": 15.61,
+      "cer_improvement": -71.93,
+      "meets_target": false,
+      "confidence": 1.0,
+      "manual_verification_required": false,
+      "processing_time": 173.18,
+      "field_accuracy": {
+        "has_provider": true,
+        "has_account": true,
+        "has_date": true,
+        "has_electricity": true,
+        "has_meter_reading": true
+      },
+      "field_completeness": 1.0
+    },
+    {
+      "file": "SEWA.png",
+      "status": "failed",
+      "error": "OCR extraction failed: OCR process failed: \nDetecting bboxes:   0%|          | 0/1 [00:00<?, ?it/s]\nDetecting bboxes: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 1/1 [00:00<00:00,  1.51it/s]\nDetecting bboxes: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 1/1 [00:00<00:00,  1.50it/s]\n\nRecognizing Text:   0%|          | 0/204 [00:00<?, ?it/s]\nRecognizing Text:   0%|          | 1/204 [00:14<47:40, 14.09s/it]\nRecognizing Text:   3%|\u258e         | 6/204 [00:14<05:49,  1.77s/it]\nRecognizing Text:   4%|\u258d         | 9/204 [00:14<03:28,  1.07s/it]\nRecognizing Text:   5%|\u258c         | 11/204 [00:15<02:38,  1.22it/s]\nRecognizing Text:   9%|\u2589         | 18/204 [00:18<01:55,  1.61it/s]\nRecognizing Text:  12%|\u2588\u258f        | 24/204 [00:18<01:07,  2.65it/s]\nRecognizing Text:  13%|\u2588\u258e        | 27/204 [00:18<00:54,  3.26it/s]\nRecognizing Text:  16%|\u2588\u258c        | 32/204 [00:22<01:13,  2.34it/s]\nRecognizing Text:  17%|\u2588\u258b        | 34/204 [00:22<01:03,  2.67it/s]\nRecognizing Text:  21%|\u2588\u2588        | 42/204 [00:22<00:33,  4.84it/s]\nRecognizing Text:  22%|\u2588\u2588\u258f       | 44/204 [00:22<00:30,  5.19it/s]\nRecognizing Text:  23%|\u2588\u2588\u258e       | 47/204 [00:25<01:01,  2.56it/s]\nRecognizing Text:  25%|\u2588\u2588\u258d       | 50/204 [00:26<00:48,  3.20it/s]\nRecognizing Text:  25%|\u2588\u2588\u258c       | 52/204 [00:26<00:41,  3.65it/s]\nRecognizing Text:  27%|\u2588\u2588\u258b       | 55/204 [00:26<00:31,  4.66it/s]\nRecognizing Text:  29%|\u2588\u2588\u2589       | 60/204 [00:29<00:51,  2.80it/s]\nRecognizing Text:  31%|\u2588\u2588\u2588       | 63/204 [00:29<00:40,  3.51it/s]\nRecognizing Text:  34%|\u2588\u2588\u2588\u258d      | 70/204 [00:29<00:22,  5.94it/s]\nRecognizing Text:  35%|\u2588\u2588\u2588\u258c      | 72/204 [00:30<00:21,  6.23it/s]\nRecognizing Text:  39%|\u2588\u2588\u2588\u258a      | 79/204 [00:34<00:41,  2.98it/s]\nRecognizing Text:  41%|\u2588\u2588\u2588\u2588      | 84/204 [00:34<00:29,  4.07it/s]\nRecognizing Text:  44%|\u2588\u2588\u2588\u2588\u258e     | 89/204 [00:34<00:21,  5.41it/s]\nRecognizing Text:  48%|\u2588\u2588\u2588\u2588\u258a     | 98/204 [00:38<00:30,  3.48it/s]\nRecognizing Text:  49%|\u2588\u2588\u2588\u2588\u2589     | 100/204 [00:38<00:27,  3.74it/s]\nRecognizing Text:  50%|\u2588\u2588\u2588\u2588\u2588     | 103/204 [00:38<00:23,  4.36it/s]\nRecognizing Text:  52%|\u2588\u2588\u2588\u2588\u2588\u258f    | 107/204 [00:39<00:17,  5.51it/s]/opt/homebrew/Cellar/python@3.13/3.13.2/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:277: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-meilna_7'}\n  warnings.warn(\n",
+      "cer_structured": 100.0,
+      "cer_raw": 100.0,
+      "meets_target": false
+    }
+  ]
+}

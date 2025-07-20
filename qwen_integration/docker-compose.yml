@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  qwen-ocr:
+    build:
+      context: ..
+      dockerfile: qwen_integration/Dockerfile
+    container_name: qwen-ocr-processor
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0  # If GPU available
+      - PORT=8080
+    volumes:
+      - ../test_bills:/app/test_bills:ro
+      - ./output:/app/output
+      - qwen-cache:/app/.cache/huggingface
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 4G  # Qwen3-0.6B needs ~2-3GB
+        reservations:
+          memory: 3G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  qwen-cache:
+    driver: local

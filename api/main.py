@@ -18,9 +18,9 @@ from PIL import Image
 import magic
 
 app = FastAPI(
-    title="Surya OCR API",
-    description="OCR service powered by Surya for high-accuracy text extraction",
-    version="1.0.0"
+    title="Surya OCR API with Qwen Enhancement",
+    description="OCR service powered by Surya with Qwen3-0.6B for structured data extraction",
+    version="2.0.0"
 )
 
 # Configuration
@@ -238,7 +238,7 @@ async def process_batch_images(
 @app.on_event("startup")
 async def startup_event():
     """Initialize the API on startup"""
-    print(f"Surya OCR API starting on port {os.getenv('PORT', 8080)}")
+    print(f"Surya OCR API with Qwen starting on port {os.getenv('PORT', 8080)}")
     print(f"Temporary directory: {TEMP_DIR}")
     
     # Test surya_ocr availability
@@ -248,6 +248,20 @@ async def startup_event():
             print("WARNING: surya_ocr command not found. Make sure it's installed.")
     except FileNotFoundError:
         print("WARNING: surya_ocr command not found. Make sure it's installed.")
+    
+    # Add Qwen routes
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from qwen_integration.api_extensions import add_qwen_routes
+        add_qwen_routes(app)
+        print("Qwen OCR extensions loaded successfully")
+    except ImportError as e:
+        print(f"WARNING: Could not load Qwen extensions: {e}")
+        print("Qwen endpoints will not be available")
+    except Exception as e:
+        print(f"ERROR loading Qwen extensions: {e}")
+        print("Qwen endpoints will not be available")
 
 @app.on_event("shutdown")
 async def shutdown_event():

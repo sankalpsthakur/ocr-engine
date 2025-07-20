@@ -1,0 +1,38 @@
+# Railway deployment configuration
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[env]
+PYTHONUNBUFFERED = "1"
+TRANSFORMERS_CACHE = "/app/.cache/huggingface"
+HF_HOME = "/app/.cache/huggingface"
+# Increase timeout for model loading
+UVICORN_TIMEOUT_KEEP_ALIVE = "120"
+
+# Railway-specific settings
+[[services]]
+name = "ocr-engine"
+region = "us-west"
+plan = "hobby"
+
+# Resource limits
+[services.resources]
+memory = "2Gi"
+cpu = "1"
+
+# Scaling configuration
+[services.scaling]
+minInstances = 1
+maxInstances = 3
+
+# Custom domains (optional)
+# [[services.domains]]
+# domain = "ocr-api.yourdomain.com"
