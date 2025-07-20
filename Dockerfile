@@ -55,7 +55,7 @@ RUN mkdir -p /tmp/surya_ocr_api && \
 USER appuser
 
 # Download model weights (this will cache them in the image)
-RUN python -c "import surya; from surya.model.detection.model import load_model as load_det_model; from surya.model.recognition.model import load_model as load_rec_model; load_det_model(); load_rec_model()"
+# Models will be downloaded on first use by surya CLI
 
 # Expose port
 EXPOSE 8080
