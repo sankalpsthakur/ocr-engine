@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-07-20T15:52:04.932699",
+  "configuration": {
+    "original_files_count": 1,
+    "synthetic_files_count": 0,
+    "total_files": 1,
+    "ground_truth_file": "/Users/sankalpthakur/Projects/Projects - Emtribe/surya/benchmark_output_ground_truth/raw_text_ground_truth.json"
+  },
+  "overall_metrics": {
+    "successful_runs": 0,
+    "failed_runs": 1,
+    "average_cer": 100.0,
+    "files_meeting_target": 0,
+    "success_rate": 0.0
+  },
+  "by_type": {
+    "original": {
+      "count": 1,
+      "successful": 0,
+      "avg_cer": null
+    },
+    "synthetic": {
+      "count": 0,
+      "successful": 0,
+      "avg_cer": null
+    }
+  },
+  "degradation_analysis": {},
+  "detailed_results": [
+    {
+      "file": "SEWA 2.png",
+      "type": "original",
+      "cer": 100.0,
+      "meets_target": false,
+      "status": "failed"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  surya-ocr-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: surya-ocr-api
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount test_bills for development testing
+      - ./test_bills:/app/test_bills:ro
+      # Optional: Mount a directory for processing outputs
+      - ./ocr_outputs:/app/outputs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  # Optional: Redis for caching (can be enabled later)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: surya-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+
+  # Optional: Nginx for load balancing (can be enabled later)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: surya-nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - surya-ocr-api
+  #   restart: unless-stopped
+
+volumes:
+  # redis_data:
+  ocr_outputs:

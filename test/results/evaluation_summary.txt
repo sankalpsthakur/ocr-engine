@@ -1,0 +1,5 @@
+Surya OCR Evaluation Summary
+========================================
+Timestamp: 2025-07-20 15:52:04
+Average CER: 100.00%
+Files meeting <2% target: 0/0
