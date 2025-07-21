@@ -57,16 +57,15 @@ USER appuser
 # Download model weights (this will cache them in the image)
 # Models will be downloaded on first use by surya CLI
 
-# Expose port
-EXPOSE 8080
+# Expose port (Railway will set PORT env var)
+EXPOSE ${PORT:-8080}
 
 # Set environment variables
-ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health').raise_for_status()"
+# Health check - use Railway's PORT
+HEALTHCHECK --interval=30s --timeout=30s --start-period=300s --retries=10 \
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8080\")}/health').read()"
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run the application - use Railway's PORT
+CMD ["sh", "-c", "python -m uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
