@@ -1,4 +1,4 @@
-# Multi-stage build for Surya OCR API
+# Multi-stage build for Surya OCR API - Optimized for Railway
 FROM python:3.10-slim AS builder
 
 # Install build dependencies
@@ -16,8 +16,7 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip list | grep -E "surya|qwen|transformers" || true
+    pip install --no-cache-dir -r requirements.txt
 
 # Final stage
 FROM python:3.10-slim
@@ -49,15 +48,9 @@ COPY api/ /app/api/
 COPY qwen_vl_integration/ /app/qwen_vl_integration/
 COPY test/ocr_postprocessing.py /app/
 
-# Verify the copy worked correctly
-RUN ls -la /app/ && \
-    ls -la /app/qwen_vl_integration/ && \
-    ls -la /app/qwen_vl_integration/src/ || true
-
 # Ensure __init__.py files exist for proper module imports
 RUN touch /app/__init__.py && \
-    find /app/qwen_vl_integration -type d -exec touch {}/__init__.py \; && \
-    ls -la /app/qwen_vl_integration/src/
+    find /app/qwen_vl_integration -type d -exec touch {}/__init__.py \;
 
 # Create temp and cache directories
 RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
@@ -66,41 +59,26 @@ RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
 # Switch to non-root user
 USER appuser
 
-# Pre-download models to avoid runtime OOM
-# Create a script to pre-load models
+# Create a minimal model validation script that doesn't download
 RUN echo '#!/usr/bin/env python3\n\
 import os\n\
 import sys\n\
 os.environ["HF_HOME"] = "/app/.cache/huggingface"\n\
 os.environ["TRANSFORMERS_CACHE"] = "/app/.cache/huggingface"\n\
 os.environ["TORCH_HOME"] = "/app/.cache/torch"\n\
-print("Python packages installed:")\n\
-import subprocess\n\
-subprocess.run(["pip", "list"], check=False)\n\
-print("\\nPre-downloading Surya OCR models...")\n\
+print("Environment configured for model downloads")\n\
+print("Models will be downloaded on first request to keep image size small")\n\
+# Validate imports only\n\
 try:\n\
     import surya\n\
-    print(f"Surya package found at: {surya.__file__}")\n\
-    from surya.models import load_predictors\n\
-    predictors = load_predictors()\n\
-    print("✓ Surya models downloaded:", list(predictors.keys()))\n\
+    import transformers\n\
+    import torch\n\
+    print("✓ All required packages installed successfully")\n\
 except ImportError as e:\n\
-    print(f"ERROR: Could not import Surya: {e}")\n\
-    print("Make sure surya-ocr is installed")\n\
-except Exception as e:\n\
-    print(f"Warning: Could not pre-download Surya models: {e}")\n\
-print("\\nPre-downloading Qwen VL model...")\n\
-try:\n\
-    from transformers import AutoModel, AutoTokenizer\n\
-    model_name = "Qwen/Qwen2-VL-2B-Instruct"\n\
-    tokenizer = AutoTokenizer.from_pretrained(model_name)\n\
-    model = AutoModel.from_pretrained(model_name, trust_remote_code=True)\n\
-    print("✓ Qwen VL model downloaded")\n\
-    del model, tokenizer  # Free memory\n\
-except Exception as e:\n\
-    print(f"Warning: Could not pre-download Qwen VL model: {e}")\n\
-' > /app/preload_models.py && \
-    python /app/preload_models.py || echo "Model pre-loading completed with warnings"
+    print(f"ERROR: Missing package: {e}")\n\
+    sys.exit(1)\n\
+' > /app/validate_install.py && \
+    python /app/validate_install.py
 
 # Expose port (Railway will set PORT env var)
 EXPOSE ${PORT:-8080}

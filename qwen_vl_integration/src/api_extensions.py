@@ -4,6 +4,8 @@ import os
 import tempfile
 import asyncio
 import logging
+import time
+import psutil
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -18,9 +20,25 @@ from .extractors import QwenVLProcessor
 from .models import DEWABill, SEWABill
 from .utils import ImagePreprocessor
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import centralized logging if available
+try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from api.logging_config import get_logger, log_performance, log_memory_usage, set_request_id
+    logger = get_logger(__name__)
+except ImportError:
+    # Fallback to basic logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    def log_performance(logger, operation, duration_ms, success=True, **extra):
+        logger.info(f"Performance: {operation} - {duration_ms}ms")
+    
+    def log_memory_usage(logger, context):
+        logger.info(f"Memory usage: {context}")
+    
+    def set_request_id(request_id=None):
+        return request_id or "fallback"
 
 
 class QwenVLResponse(BaseModel):
@@ -49,20 +67,36 @@ def get_processor() -> QwenVLProcessor:
     """Get or create the global processor instance"""
     global _processor
     if _processor is None:
-        logger.info("Initializing Qwen VL processor...")
+        init_start = time.time()
+        logger.info("Initializing Qwen VL processor for first time...")
+        
+        # Log system resources
+        log_memory_usage(logger, "Before Qwen VL initialization")
         
         # Choose model based on available resources
         if torch.cuda.is_available():
-            model_name = "Qwen/Qwen2-VL-2B-Instruct"
+            model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
             gpu_memory = torch.cuda.get_device_properties(0).total_memory
+            gpu_memory_gb = gpu_memory / 1024**3
             use_quantization = gpu_memory < 8 * 1024**3
-            logger.info(f"CUDA available. GPU memory: {gpu_memory / 1024**3:.2f}GB")
-            logger.info(f"Using quantization: {use_quantization}")
+            
+            logger.info("GPU detected", extra={
+                'gpu_name': torch.cuda.get_device_name(0),
+                'gpu_memory_gb': round(gpu_memory_gb, 2),
+                'use_quantization': use_quantization,
+                'cuda_version': torch.version.cuda
+            })
         else:
             # Use smaller model for CPU
-            model_name = "Qwen/Qwen2-VL-2B-Instruct"
+            model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
             use_quantization = False
-            logger.info("CUDA not available, using CPU")
+            
+            cpu_info = {
+                'cpu_count': psutil.cpu_count(),
+                'cpu_freq_mhz': psutil.cpu_freq().current if psutil.cpu_freq() else 'unknown',
+                'ram_gb': round(psutil.virtual_memory().total / 1024**3, 2)
+            }
+            logger.info("CPU mode - no GPU available", extra=cpu_info)
         
         logger.info(f"Loading model: {model_name}")
         
@@ -71,9 +105,24 @@ def get_processor() -> QwenVLProcessor:
                 model_name=model_name,
                 use_quantization=use_quantization
             )
-            logger.info("Qwen VL processor initialized successfully")
+            
+            # Log successful initialization
+            init_duration = (time.time() - init_start) * 1000
+            log_memory_usage(logger, "After Qwen VL initialization")
+            
+            logger.info("Qwen VL processor initialized successfully", extra={
+                'init_duration_ms': round(init_duration, 2),
+                'model_name': model_name,
+                'quantized': use_quantization
+            })
+            
         except Exception as e:
-            logger.error(f"Failed to initialize processor: {e}", exc_info=True)
+            init_duration = (time.time() - init_start) * 1000
+            logger.error(f"Failed to initialize processor", extra={
+                'error': str(e),
+                'init_duration_ms': round(init_duration, 2),
+                'model_name': model_name
+            }, exc_info=True)
             raise
             
     return _processor
@@ -127,11 +176,18 @@ def add_qwen_routes(app: FastAPI):
         1. Surya OCR for high-accuracy text extraction
         2. Qwen VL for spatial reasoning and structured extraction
         """
-        start_time = datetime.now()
+        request_start = time.time()
+        request_id = set_request_id()
         temp_path = None
         
+        logger.info(f"Qwen VL processing request started", extra={
+            'request_id': request_id,
+            'filename': file.filename,
+            'enable_reasoning': enable_reasoning,
+            'provider': provider
+        })
+        
         try:
-            logger.info(f"Processing request - File: {file.filename}, Reasoning: {enable_reasoning}, Provider: {provider}")
             
             # Validate file
             if not file.content_type or not file.content_type.startswith(('image/', 'application/pdf')):
@@ -140,40 +196,67 @@ def add_qwen_routes(app: FastAPI):
             
             # Save uploaded file
             file_content = await file.read()
-            logger.info(f"File size: {len(file_content) / 1024:.2f}KB")
+            file_size_kb = len(file_content) / 1024
+            logger.debug(f"File read complete", extra={
+                'size_kb': round(file_size_kb, 2),
+                'content_type': file.content_type
+            })
+            
             suffix = Path(file.filename).suffix or '.png'
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(file_content)
                 temp_path = Path(tmp.name)
-            logger.info(f"Saved to temp file: {temp_path}")
+            logger.debug(f"Saved to temp file: {temp_path}")
             
             # First, run Surya OCR
             logger.info("Running Surya OCR...")
+            ocr_start = time.time()
+            
             from api.main import run_surya_ocr
             ocr_result = await asyncio.to_thread(run_surya_ocr, temp_path)
             
+            ocr_duration = (time.time() - ocr_start) * 1000
+            
             if ocr_result["status"] != "success":
-                logger.error(f"OCR failed: {ocr_result.get('error')}")
+                logger.error(f"OCR failed", extra={
+                    'error': ocr_result.get('error'),
+                    'duration_ms': round(ocr_duration, 2)
+                })
                 raise HTTPException(status_code=500, detail=f"OCR failed: {ocr_result.get('error')}")
             
-            logger.info(f"OCR successful - Confidence: {ocr_result.get('confidence')}, Text length: {len(ocr_result.get('text', ''))}")
+            log_performance(logger, "surya_ocr", ocr_duration, True,
+                          confidence=ocr_result.get('confidence'),
+                          text_length=len(ocr_result.get('text', '')))
             
             # Apply post-processing to OCR text
-            logger.info("Applying OCR post-processing...")
+            logger.debug("Applying OCR post-processing...")
+            postprocess_start = time.time()
+            
             from .utils.ocr_postprocessor import process_surya_output
             cleaned_text = process_surya_output(ocr_result["text"])
-            logger.info(f"Post-processing complete - Cleaned text length: {len(cleaned_text)}")
+            
+            postprocess_duration = (time.time() - postprocess_start) * 1000
+            logger.debug(f"Post-processing complete", extra={
+                'duration_ms': round(postprocess_duration, 2),
+                'original_length': len(ocr_result["text"]),
+                'cleaned_length': len(cleaned_text)
+            })
             
             # Load and preprocess image
             preprocessor = ImagePreprocessor()
             image = preprocessor.preprocess(temp_path)
             
             # Process with Qwen VL
-            logger.info("Getting Qwen VL processor...")
+            logger.debug("Getting Qwen VL processor...")
             processor = get_processor()
             
-            logger.info(f"Processing with Qwen VL - Method: {'reasoning' if enable_reasoning else 'direct'}")
+            logger.info(f"Starting VLM processing", extra={
+                'method': 'reasoning' if enable_reasoning else 'direct',
+                'text_length': len(cleaned_text)
+            })
+            
+            vlm_start = time.time()
             
             if enable_reasoning:
                 result = await asyncio.to_thread(

@@ -2,6 +2,9 @@
 
 import json
 import torch
+import time
+import psutil
+import os
 from typing import Dict, Any, Optional, Union, Tuple, List
 from PIL import Image
 import logging
@@ -24,9 +27,25 @@ from ..utils.prompt_builder import PromptBuilder
 from ..utils.cache_manager import ModelCacheManager
 from .spatial_reasoner import SpatialReasoner
 
-# Configure detailed logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import centralized logging if available, otherwise use basic logging
+try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from api.logging_config import get_logger, log_performance, log_memory_usage
+    logger = get_logger(__name__)
+except ImportError:
+    # Fallback to basic logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    # Define fallback functions
+    def log_performance(logger, operation, duration_ms, success=True, **extra):
+        logger.info(f"Performance: {operation} - {duration_ms}ms")
+    
+    def log_memory_usage(logger, context):
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        logger.info(f"Memory usage ({context}): {memory_mb:.2f}MB")
 
 
 class QwenVLProcessor:
@@ -40,7 +59,7 @@ class QwenVLProcessor:
     4. Error correction using visual context
     """
     
-    def __init__(self, model_name: str = "Qwen/Qwen2-VL-2B-Instruct", 
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-VL-3B-Instruct", 
                  device: str = None,
                  use_quantization: bool = True):
         """
@@ -51,9 +70,19 @@ class QwenVLProcessor:
             device: Device to use (cuda/cpu/auto)
             use_quantization: Whether to use 4-bit quantization for efficiency
         """
+        init_start = time.time()
+        
         self.model_name = model_name
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.use_quantization = use_quantization and torch.cuda.is_available()
+        
+        logger.info(f"Initializing QwenVLProcessor", extra={
+            'model_name': model_name,
+            'device': self.device,
+            'use_quantization': self.use_quantization,
+            'cuda_available': torch.cuda.is_available(),
+            'gpu_name': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+        })
         
         # Initialize components
         self.cache_manager = ModelCacheManager()
@@ -62,26 +91,50 @@ class QwenVLProcessor:
         
         # Check if qwen_vl_utils is available
         if process_vision_info is None:
+            logger.error("qwen_vl_utils not available")
             raise ImportError("qwen_vl_utils is required. Install with: pip install qwen-vl-utils")
         
         # Load model
         self._load_model()
         
+        init_duration = (time.time() - init_start) * 1000
+        logger.info(f"QwenVLProcessor initialized", extra={
+            'init_duration_ms': round(init_duration, 2)
+        })
+        
     def _load_model(self):
         """Load Qwen VL model with caching and optimization"""
+        load_start = time.time()
+        
         try:
-            logger.info(f"Starting model load process for {self.model_name}")
-            logger.info(f"Device: {self.device}, Quantization: {self.use_quantization}")
+            logger.info(f"Starting model load process")
+            
+            # Log memory before loading
+            log_memory_usage(logger, "Before model loading")
+            
+            # Check disk space
+            import shutil
+            cache_dir = Path.home() / ".cache" / "huggingface"
+            if cache_dir.exists():
+                free_space_gb = shutil.disk_usage(cache_dir).free / 1024 / 1024 / 1024
+                logger.info(f"Free disk space for cache: {free_space_gb:.2f}GB")
             
             # Check cache first
             cached_model = self.cache_manager.get_model(self.model_name)
             if cached_model:
                 self.model, self.processor = cached_model
-                logger.info(f"Loaded {self.model_name} from cache")
+                logger.info(f"Model loaded from cache", extra={
+                    'cache_hit': True,
+                    'model_name': self.model_name
+                })
                 return
             
             logger.info(f"Model not in cache, downloading {self.model_name}...")
             logger.info("This may take several minutes on first run...")
+            
+            # Log cache directory info
+            cache_info = self.cache_manager.get_cache_info()
+            logger.info("Cache directory info", extra=cache_info)
             
             # Model loading kwargs
             model_kwargs = {
@@ -99,11 +152,21 @@ class QwenVLProcessor:
             
             # Load model
             logger.info("Loading model from HuggingFace...")
-            self.model = Qwen2VLForConditionalGeneration.from_pretrained(
-                self.model_name,
-                **model_kwargs
-            )
-            logger.info("Model loaded successfully")
+            model_load_start = time.time()
+            
+            try:
+                self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+                    self.model_name,
+                    **model_kwargs
+                )
+                model_load_time = (time.time() - model_load_start) * 1000
+                logger.info("Model loaded successfully", extra={
+                    'load_time_ms': round(model_load_time, 2),
+                    'model_size_mb': sum(p.numel() * p.element_size() for p in self.model.parameters()) / 1024 / 1024
+                })
+            except Exception as e:
+                logger.error(f"Model loading failed: {e}", exc_info=True)
+                raise
             
             # Load processor
             logger.info("Loading processor...")
@@ -118,7 +181,16 @@ class QwenVLProcessor:
             # Cache the model
             self.cache_manager.cache_model(self.model_name, (self.model, self.processor))
             
-            logger.info(f"Successfully loaded and cached {self.model_name}")
+            # Log memory after loading
+            log_memory_usage(logger, "After model loading")
+            
+            load_duration = (time.time() - load_start) * 1000
+            logger.info(f"Model loading complete", extra={
+                'total_duration_ms': round(load_duration, 2),
+                'model_name': self.model_name,
+                'device': str(self.device),
+                'quantized': self.use_quantization
+            })
             
         except Exception as e:
             logger.error(f"Failed to load model: {e}", exc_info=True)
@@ -139,14 +211,24 @@ class QwenVLProcessor:
         Returns:
             Structured data matching the appropriate schema
         """
+        process_start = time.time()
+        
+        logger.info("Starting process_with_reasoning", extra={
+            'image_type': type(image).__name__,
+            'ocr_text_length': len(ocr_text),
+            'provider': provider
+        })
+        
         try:
             # Load image if path
             if isinstance(image, (str, Path)):
                 image = Image.open(image)
+                logger.debug(f"Loaded image from path: {image.size}")
             
             # Auto-detect provider if not specified
             if not provider:
                 provider = self._detect_provider(ocr_text)
+                logger.info(f"Auto-detected provider: {provider}")
             
             # Get appropriate schema
             schema_class = DEWABill if provider == "DEWA" else SEWABill

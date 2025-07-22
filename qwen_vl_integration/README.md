@@ -93,8 +93,8 @@ python test_qwen_vl_integration.py
 ## Model Selection
 
 The system automatically selects the appropriate model:
-- GPU available: Qwen2-VL-2B-Instruct with optional quantization
-- CPU only: Qwen2-VL-2B-Instruct without quantization
+- GPU available: Qwen2.5-VL-3B-Instruct with optional quantization
+- CPU only: Qwen2.5-VL-3B-Instruct without quantization
 
 ## Performance
 
