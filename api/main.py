@@ -238,10 +238,29 @@ async def process_batch_images(
 @app.on_event("startup")
 async def startup_event():
     """Initialize the API on startup"""
-    print(f"Surya OCR API with Qwen starting on port {os.getenv('PORT', 8080)}")
+    import sys
+    print("=" * 80)
+    print("SURYA OCR API STARTUP")
+    print("=" * 80)
+    print(f"Port: {os.getenv('PORT', 8080)}")
+    print(f"Working directory: {os.getcwd()}")
+    print(f"Python version: {sys.version}")
+    print(f"Python executable: {sys.executable}")
+    print(f"Python path: {sys.path}")
     print(f"Temporary directory: {TEMP_DIR}")
     
+    # List directory contents
+    print("\nDirectory contents:")
+    for item in os.listdir('.'):
+        print(f"  {item}")
+    
+    # Check environment variables
+    print("\nEnvironment variables:")
+    for key in ['PYTHONPATH', 'HF_HOME', 'TRANSFORMERS_CACHE', 'TORCH_HOME']:
+        print(f"  {key}: {os.environ.get(key, 'Not set')}")
+    
     # Test surya_ocr availability
+    print("\nChecking surya_ocr command...")
     try:
         result = subprocess.run(["surya_ocr", "--help"], capture_output=True)
         if result.returncode != 0:
@@ -250,8 +269,16 @@ async def startup_event():
         print("WARNING: surya_ocr command not found. Make sure it's installed.")
     
     # Pre-load Surya models to avoid timeout on first request
-    print("Pre-loading Surya OCR models...")
+    print("\nPre-loading Surya OCR models...")
     try:
+        # Try different import approaches
+        print("  Attempting import surya.ocr...")
+        try:
+            import surya.ocr
+            print("  ✓ surya.ocr imported")
+        except ImportError as e:
+            print(f"  ✗ Failed to import surya.ocr: {e}")
+            
         from surya.ocr import run_ocr
         from surya.model.detection.model import load_model as load_det_model, load_processor as load_det_processor
         from surya.model.recognition.model import load_model as load_rec_model
@@ -264,36 +291,73 @@ async def startup_event():
         rec_processor = load_rec_processor()
         
         print("✓ Surya OCR models pre-loaded successfully")
+    except ImportError as e:
+        print(f"✗ Import error for Surya: {e}")
+        print("  Checking sys.modules:")
+        for module in sorted(sys.modules.keys()):
+            if 'surya' in module:
+                print(f"    {module}")
     except Exception as e:
-        print(f"WARNING: Failed to pre-load Surya models: {e}")
+        print(f"✗ Failed to pre-load Surya models: {e}")
+        import traceback
+        traceback.print_exc()
         print("Models will be loaded on first use (may cause timeout)")
     
     # Add Qwen routes
+    print("\nLoading Qwen VL extensions...")
     try:
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent))
+        # Add parent directory to path
+        parent_dir = str(Path(__file__).parent.parent)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+            print(f"  Added to sys.path: {parent_dir}")
+        
+        # Debug: Check if qwen_vl_integration exists
+        qwen_path = Path(parent_dir) / "qwen_vl_integration"
+        print(f"  Checking for qwen_vl_integration at: {qwen_path}")
+        if qwen_path.exists():
+            print("  ✓ qwen_vl_integration directory exists")
+            # List contents
+            for item in qwen_path.iterdir():
+                print(f"    - {item.name}")
+        else:
+            print("  ✗ qwen_vl_integration directory NOT found")
         
         # Check for critical dependencies first
         try:
             import qwen_vl_utils
+            print("  ✓ qwen-vl-utils imported")
         except ImportError:
-            print("WARNING: qwen-vl-utils not installed. Install with: pip install qwen-vl-utils")
-            print("Qwen VL endpoints will not be available")
+            print("  ✗ qwen-vl-utils not installed")
+            print("    Install with: pip install qwen-vl-utils")
+            print("  Qwen VL endpoints will not be available")
             return
-            
+        
+        # Try to import the extension
+        print("  Attempting to import qwen_vl_integration.api_extensions...")
         from qwen_vl_integration.api_extensions import add_qwen_routes
+        print("  ✓ Import successful")
+        
         add_qwen_routes(app)
-        print("Qwen VL extensions loaded successfully")
-        print("Available endpoints: /ocr/qwen-vl/health, /ocr/qwen-vl/process, /ocr/qwen-vl/schema/{provider}")
+        print("✓ Qwen VL extensions loaded successfully")
+        print("  Available endpoints:")
+        print("    - /ocr/qwen-vl/health")
+        print("    - /ocr/qwen-vl/process")
+        print("    - /ocr/qwen-vl/extract-text")
+        print("    - /ocr/qwen-vl/schema/{provider}")
     except ImportError as e:
-        print(f"WARNING: Could not load Qwen extensions: {e}")
-        print("Qwen VL endpoints will not be available")
-        print("Make sure all dependencies are installed: pip install -r requirements.txt")
+        print(f"✗ Import error for Qwen extensions: {e}")
+        print("  Qwen VL endpoints will not be available")
+        print("  Make sure all dependencies are installed: pip install -r requirements.txt")
     except Exception as e:
-        print(f"ERROR loading Qwen extensions: {e}")
+        print(f"✗ ERROR loading Qwen extensions: {e}")
         import traceback
         traceback.print_exc()
-        print("Qwen VL endpoints will not be available")
+        print("  Qwen VL endpoints will not be available")
+    
+    print("\n" + "=" * 80)
+    print("STARTUP COMPLETE")
+    print("=" * 80)
 
 @app.on_event("shutdown")
 async def shutdown_event():

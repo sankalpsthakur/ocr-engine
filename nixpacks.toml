@@ -32,36 +32,48 @@ nixPkgs = [
 [phases.install]
 cmds = [
     "pip install --upgrade pip setuptools wheel",
-    "pip install -r requirements.txt",
-    # Verify installations
-    "python -c 'import surya.ocr; print(\"✓ Surya OCR imported successfully\")'",
-    "python -c 'import cv2; print(\"✓ OpenCV imported successfully\")'"
+    "pip install -r requirements.txt"
 ]
 
 [phases.build]
 cmds = [
+    # Debug environment
+    "echo '=== Railway Build Environment ==='",
+    "pwd",
+    "ls -la",
+    "echo '=== Python Environment ==='",
+    "python --version",
+    "pip --version",
+    "echo '=== Installed Packages ==='",
+    "pip list | grep -E '(surya|opencv|transformers|torch|qwen)' || echo 'No matching packages found'",
+    "echo '=== Surya Package Details ==='",
+    "pip show surya-ocr || echo 'surya-ocr not found'",
+    "echo '=== Python Path ==='",
+    "python -c 'import sys; print(\"\\n\".join(sys.path))'",
+    "echo '=== Project Structure ==='",
+    "find . -name '*.py' -type f | head -20",
+    "echo '=== Checking imports ==='",
+    "python -c 'import sys; sys.path.insert(0, \".\"); import api.main' || echo 'Failed to import api.main'",
     # Create necessary directories
-    "mkdir -p /app/.cache/huggingface",
-    "mkdir -p /app/.cache/torch",
+    "mkdir -p .cache/huggingface",
+    "mkdir -p .cache/torch",
     "mkdir -p /tmp/surya_ocr_api",
     # Ensure proper permissions
-    "chmod -R 777 /tmp/surya_ocr_api",
-    # List installed packages for debugging
-    "pip list | grep -E '(surya|opencv|transformers|torch)'"
+    "chmod -R 777 /tmp/surya_ocr_api"
 ]
 
 [start]
-# Set PYTHONPATH to include the app directory for local module imports
-cmd = "cd /app && PYTHONPATH=/app python -m uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"
+# Use current directory with PYTHONPATH
+cmd = "PYTHONPATH=. python -m uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"
 
 [variables]
 # Python environment
 PYTHONUNBUFFERED = "1"
-PYTHONPATH = "/app"
-# Model caching directories
-TRANSFORMERS_CACHE = "/app/.cache/huggingface"
-HF_HOME = "/app/.cache/huggingface"
-TORCH_HOME = "/app/.cache/torch"
+PYTHONPATH = "."
+# Model caching directories (use relative paths)
+TRANSFORMERS_CACHE = ".cache/huggingface"
+HF_HOME = ".cache/huggingface"
+TORCH_HOME = ".cache/torch"
 # Hugging Face settings
 HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
 HF_HUB_OFFLINE = "0"
