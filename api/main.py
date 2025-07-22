@@ -89,55 +89,49 @@ def validate_image_file(file_content: bytes, filename: str) -> bytes:
     return file_content
 
 def run_surya_ocr(file_path: Path) -> Dict:
-    """Run Surya OCR on a file"""
+    """Run Surya OCR on a file using direct API"""
     start_time = datetime.now()
     
     try:
-        # Create output directory
-        output_dir = file_path.parent / file_path.stem
-        output_dir.mkdir(exist_ok=True)
+        # Load image
+        image = Image.open(file_path)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
         
-        # Run surya_ocr command
-        cmd = ["surya_ocr", str(file_path), "--output_dir", str(output_dir)]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # Check if predictors are loaded
+        if 'surya_predictors' not in globals():
+            from surya.models import load_predictors
+            global surya_predictors
+            surya_predictors = load_predictors()
         
-        if result.returncode != 0:
-            return {
-                "status": "error",
-                "error": f"OCR process failed: {result.stderr}"
-            }
+        # Get detection and recognition predictors
+        det_predictor = surya_predictors['detection']
+        rec_predictor = surya_predictors['recognition']
         
-        # Parse results
-        results_file = output_dir / file_path.stem / "results.json"
+        # Run OCR
+        # First run detection
+        detection_results = det_predictor([image])
         
-        if not results_file.exists():
-            return {
-                "status": "error",
-                "error": "OCR results file not found"
-            }
+        # Then run recognition with detection results
+        ocr_results = rec_predictor(
+            [image],
+            det_predictor=det_predictor,
+            highres_images=None,
+            math_mode=True
+        )
         
-        with open(results_file, 'r', encoding='utf-8') as f:
-            ocr_data = json.load(f)
-        
-        # Extract text
+        # Extract text from results
         text_parts = []
         total_confidence = 0
         confidence_count = 0
         
-        for filename, pages in ocr_data.items():
-            if isinstance(pages, list):
-                for page in pages:
-                    if 'text_lines' in page:
-                        for line in page['text_lines']:
-                            text_parts.append(line.get('text', ''))
-                            if 'confidence' in line:
-                                total_confidence += line['confidence']
-                                confidence_count += 1
-            elif isinstance(pages, dict) and 'text_lines' in pages:
-                for line in pages['text_lines']:
-                    text_parts.append(line.get('text', ''))
-                    if 'confidence' in line:
-                        total_confidence += line['confidence']
+        if ocr_results and len(ocr_results) > 0:
+            result = ocr_results[0]  # Get first (and only) result
+            if hasattr(result, 'text_lines'):
+                for line in result.text_lines:
+                    text_parts.append(line.text)
+                    if hasattr(line, 'confidence') and line.confidence is not None:
+                        total_confidence += line.confidence
                         confidence_count += 1
         
         # Calculate average confidence
@@ -153,11 +147,6 @@ def run_surya_ocr(file_path: Path) -> Dict:
             "processing_time": processing_time
         }
         
-    except subprocess.TimeoutExpired:
-        return {
-            "status": "error",
-            "error": "OCR process timed out after 5 minutes"
-        }
     except Exception as e:
         return {
             "status": "error",
@@ -270,33 +259,34 @@ async def startup_event():
     
     # Pre-load Surya models to avoid timeout on first request
     print("\nPre-loading Surya OCR models...")
+    print("  Attempting import surya...")
     try:
-        # Try different import approaches
-        print("  Attempting import surya.ocr...")
-        try:
-            import surya.ocr
-            print("  ✓ surya.ocr imported")
-        except ImportError as e:
-            print(f"  ✗ Failed to import surya.ocr: {e}")
-            
-        from surya.ocr import run_ocr
-        from surya.model.detection.model import load_model as load_det_model, load_processor as load_det_processor
-        from surya.model.recognition.model import load_model as load_rec_model
-        from surya.model.recognition.processor import load_processor as load_rec_processor
+        import surya
+        print(f"  ✓ surya imported from: {surya.__file__}")
+    except ImportError as e:
+        print(f"  ✗ Failed to import surya: {e}")
+    
+    try:
+        # Import Surya predictors
+        print("  Attempting to import surya.detection, surya.recognition, surya.models...")
+        from surya.detection import DetectionPredictor
+        from surya.recognition import RecognitionPredictor
+        from surya.models import load_predictors
+        print("  ✓ Surya modules imported successfully")
         
-        # Load detection and recognition models
-        det_model = load_det_model()
-        det_processor = load_det_processor()
-        rec_model = load_rec_model()
-        rec_processor = load_rec_processor()
-        
+        # Load all predictors (detection, recognition, etc.)
+        print("  Loading predictors...")
+        global surya_predictors
+        surya_predictors = load_predictors()
+        print("  ✓ Surya predictors loaded:", list(surya_predictors.keys()))
         print("✓ Surya OCR models pre-loaded successfully")
     except ImportError as e:
         print(f"✗ Import error for Surya: {e}")
-        print("  Checking sys.modules:")
-        for module in sorted(sys.modules.keys()):
-            if 'surya' in module:
-                print(f"    {module}")
+        print("  Checking installed packages:")
+        import subprocess
+        result = subprocess.run(["pip", "list", "|", "grep", "-i", "surya"], 
+                              shell=True, capture_output=True, text=True)
+        print(result.stdout)
     except Exception as e:
         print(f"✗ Failed to pre-load Surya models: {e}")
         import traceback
@@ -335,8 +325,13 @@ async def startup_event():
         
         # Try to import the extension
         print("  Attempting to import qwen_vl_integration.api_extensions...")
-        from qwen_vl_integration.api_extensions import add_qwen_routes
-        print("  ✓ Import successful")
+        try:
+            from qwen_vl_integration.api_extensions import add_qwen_routes
+            print("  ✓ Import successful (using wrapper)")
+        except ImportError:
+            print("  Wrapper import failed, trying direct import...")
+            from qwen_vl_integration.src.api_extensions import add_qwen_routes
+            print("  ✓ Import successful (direct import)")
         
         add_qwen_routes(app)
         print("✓ Qwen VL extensions loaded successfully")
