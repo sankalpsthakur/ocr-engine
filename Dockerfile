@@ -1,5 +1,5 @@
 # Multi-stage build for Surya OCR API
-FROM python:3.10-slim as builder
+FROM python:3.10-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -63,6 +63,7 @@ EXPOSE ${PORT:-8080}
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     TRANSFORMERS_CACHE=/app/.cache/huggingface \
     HF_HOME=/app/.cache/huggingface \
     TORCH_HOME=/app/.cache/torch \
