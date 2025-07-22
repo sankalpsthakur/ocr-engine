@@ -1,0 +1,22 @@
+# Core API dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic>=2.5.3,<3.0.0
+
+# OCR and image processing
+surya-ocr
+Pillow>=10.4.0
+python-magic==0.4.27
+
+# Machine learning dependencies
+transformers>=4.45.0
+torch>=2.0.0
+torchvision>=0.15.0
+accelerate>=0.24.0
+bitsandbytes>=0.41.0  # For 4-bit quantization
+qwen-vl-utils  # Required for Qwen2-VL process_vision_info
+
+# Additional utilities
+numpy>=1.24.0
+psutil>=5.9.0  # For memory monitoring

@@ -19,11 +19,14 @@ qwen_venv/
 api_server.log
 install_log.txt
 
-# Test outputs
+# Test outputs and results
 dewa_result.json
 sewa_result.json
 *_output.txt
 *_output.json
+/results/
+/test/results/
+surya_test_summary.md
 
 # OS files
 .DS_Store

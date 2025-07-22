@@ -253,7 +253,7 @@ async def startup_event():
     try:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
-        from qwen_integration.api_extensions import add_qwen_routes
+        from qwen_vl_integration.api_extensions import add_qwen_routes
         add_qwen_routes(app)
         print("Qwen OCR extensions loaded successfully")
     except ImportError as e:

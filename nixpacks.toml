@@ -6,19 +6,18 @@ nixPkgs = ["python310", "gcc", "git", "wget", "glib", "xorg.libSM", "xorg.libXex
 [phases.install]
 cmds = [
     "pip install --upgrade pip",
-    "pip install -r qwen_integration/requirements.txt"
+    "pip install -r api/requirements.txt"
 ]
 
 [phases.build]
 cmds = [
-    # Download model weights during build to speed up startup
-    "python -c \"from transformers import AutoTokenizer, AutoModelForCausalLM; print('Downloading Qwen3-0.6B model...'); AutoTokenizer.from_pretrained('Qwen/Qwen3-0.6B', trust_remote_code=True); AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-0.6B', trust_remote_code=True, low_cpu_mem_usage=True)\"",
     # Create necessary directories
-    "mkdir -p /app/.cache/huggingface"
+    "mkdir -p /app/.cache/huggingface",
+    "mkdir -p /tmp/surya_ocr_api"
 ]
 
 [start]
-cmd = "uvicorn api.main:app --host 0.0.0.0 --port 8080"
+cmd = "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"
 
 [variables]
 PYTHONUNBUFFERED = "1"
