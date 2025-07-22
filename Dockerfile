@@ -16,7 +16,9 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir surya-ocr && \
+    pip list | grep -E "surya|qwen" || true
 
 # Final stage
 FROM python:3.10-slim
@@ -48,6 +50,12 @@ COPY api/ /app/api/
 COPY qwen_vl_integration/ /app/qwen_vl_integration/
 COPY test/ocr_postprocessing.py /app/
 
+# Ensure __init__.py files exist for proper module imports
+RUN touch /app/__init__.py && \
+    touch /app/qwen_vl_integration/__init__.py && \
+    touch /app/qwen_vl_integration/src/__init__.py && \
+    find /app/qwen_vl_integration -type d -exec touch {}/__init__.py \;
+
 # Create temp and cache directories
 RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
     chown -R appuser:appuser /app /tmp/surya_ocr_api
@@ -55,8 +63,32 @@ RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
 # Switch to non-root user
 USER appuser
 
-# Download model weights (this will cache them in the image)
-# Models will be downloaded on first use by surya CLI
+# Pre-download models to avoid runtime OOM
+# Create a script to pre-load models
+RUN echo '#!/usr/bin/env python3\n\
+import os\n\
+os.environ["HF_HOME"] = "/app/.cache/huggingface"\n\
+os.environ["TRANSFORMERS_CACHE"] = "/app/.cache/huggingface"\n\
+os.environ["TORCH_HOME"] = "/app/.cache/torch"\n\
+print("Pre-downloading Surya OCR models...")\n\
+try:\n\
+    from surya.models import load_predictors\n\
+    predictors = load_predictors()\n\
+    print("✓ Surya models downloaded:", list(predictors.keys()))\n\
+except Exception as e:\n\
+    print(f"Warning: Could not pre-download Surya models: {e}")\n\
+print("Pre-downloading Qwen VL model...")\n\
+try:\n\
+    from transformers import AutoModel, AutoTokenizer\n\
+    model_name = "Qwen/Qwen2-VL-2B-Instruct"\n\
+    tokenizer = AutoTokenizer.from_pretrained(model_name)\n\
+    model = AutoModel.from_pretrained(model_name, trust_remote_code=True)\n\
+    print("✓ Qwen VL model downloaded")\n\
+    del model, tokenizer  # Free memory\n\
+except Exception as e:\n\
+    print(f"Warning: Could not pre-download Qwen VL model: {e}")\n\
+' > /app/preload_models.py && \
+    python /app/preload_models.py || echo "Model pre-loading completed with warnings"
 
 # Expose port (Railway will set PORT env var)
 EXPOSE ${PORT:-8080}
