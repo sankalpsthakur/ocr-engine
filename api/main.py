@@ -249,19 +249,51 @@ async def startup_event():
     except FileNotFoundError:
         print("WARNING: surya_ocr command not found. Make sure it's installed.")
     
+    # Pre-load Surya models to avoid timeout on first request
+    print("Pre-loading Surya OCR models...")
+    try:
+        from surya.ocr import run_ocr
+        from surya.model.detection.model import load_model as load_det_model, load_processor as load_det_processor
+        from surya.model.recognition.model import load_model as load_rec_model
+        from surya.model.recognition.processor import load_processor as load_rec_processor
+        
+        # Load detection and recognition models
+        det_model = load_det_model()
+        det_processor = load_det_processor()
+        rec_model = load_rec_model()
+        rec_processor = load_rec_processor()
+        
+        print("✓ Surya OCR models pre-loaded successfully")
+    except Exception as e:
+        print(f"WARNING: Failed to pre-load Surya models: {e}")
+        print("Models will be loaded on first use (may cause timeout)")
+    
     # Add Qwen routes
     try:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
+        
+        # Check for critical dependencies first
+        try:
+            import qwen_vl_utils
+        except ImportError:
+            print("WARNING: qwen-vl-utils not installed. Install with: pip install qwen-vl-utils")
+            print("Qwen VL endpoints will not be available")
+            return
+            
         from qwen_vl_integration.api_extensions import add_qwen_routes
         add_qwen_routes(app)
-        print("Qwen OCR extensions loaded successfully")
+        print("Qwen VL extensions loaded successfully")
+        print("Available endpoints: /ocr/qwen-vl/health, /ocr/qwen-vl/process, /ocr/qwen-vl/schema/{provider}")
     except ImportError as e:
         print(f"WARNING: Could not load Qwen extensions: {e}")
-        print("Qwen endpoints will not be available")
+        print("Qwen VL endpoints will not be available")
+        print("Make sure all dependencies are installed: pip install -r requirements.txt")
     except Exception as e:
         print(f"ERROR loading Qwen extensions: {e}")
-        print("Qwen endpoints will not be available")
+        import traceback
+        traceback.print_exc()
+        print("Qwen VL endpoints will not be available")
 
 @app.on_event("shutdown")
 async def shutdown_event():

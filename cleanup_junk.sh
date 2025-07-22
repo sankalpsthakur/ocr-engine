@@ -1,66 +1,67 @@
 #!/bin/bash
-# Cleanup script to remove junk and temporary files
 
-echo "Cleaning up junk files in OCR Engine..."
-
-# Remove process and log files
-echo "Removing process and log files..."
-rm -f api.pid
-rm -f api_server.log
-rm -f install_log.txt
+echo "🧹 Cleaning up junk files from OCR Engine project..."
 
 # Remove Python cache files
 echo "Removing Python cache files..."
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 find . -type f -name "*.pyc" -delete 2>/dev/null
 find . -type f -name "*.pyo" -delete 2>/dev/null
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 
-# Remove duplicate test file in root
-echo "Removing duplicate test files..."
-rm -f test_api.py
-rm -f test_ocr_endpoint.py
+# Remove macOS system files
+echo "Removing macOS system files..."
+find . -type f -name ".DS_Store" -delete 2>/dev/null
 
-# Remove temporary test scripts in qwen_integration
-echo "Removing temporary test scripts..."
-rm -f qwen_integration/test_account_fix.py
-rm -f qwen_integration/test_regex_only.py
-rm -f qwen_integration/test_sewa2.py
-rm -f qwen_integration/test_sewa_jpg.py
-rm -f qwen_integration/test_sewa_ocr.py
-rm -f qwen_integration/test_sewa_preprocess.py
+# Remove temporary and backup files
+echo "Removing temporary and backup files..."
+find . -type f -name "*.tmp" -delete 2>/dev/null
+find . -type f -name "*.log" -delete 2>/dev/null
+find . -type f -name "*.swp" -delete 2>/dev/null
+find . -type f -name "*.swo" -delete 2>/dev/null
+find . -type f -name "*~" -delete 2>/dev/null
+find . -type f -name "*.bak" -delete 2>/dev/null
 
-# Remove debug scripts
-echo "Removing debug scripts..."
-rm -f qwen_integration/debug_ocr.py
-rm -f qwen_integration/check_sewa_image.py
+# Remove pytest cache
+echo "Removing pytest cache..."
+find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null
 
-# Remove empty results directories
-echo "Removing empty result directories..."
-rm -rf results/surya/SEWA/
+# Remove mypy cache
+echo "Removing mypy cache..."
+find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null
 
-# Remove temporary output files
-echo "Removing temporary output files..."
-rm -f qwen_integration/sewa*.txt
-rm -f qwen_integration/*.json
-rm -f dewa_result.json
-rm -f dewa_process_result.json
+# Remove coverage files
+echo "Removing coverage files..."
+find . -type f -name ".coverage" -delete 2>/dev/null
+find . -type f -name "coverage.xml" -delete 2>/dev/null
+find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null
 
-# Remove DS_Store files (macOS)
-echo "Removing .DS_Store files..."
-find . -name ".DS_Store" -delete 2>/dev/null
+# Remove egg-info directories
+echo "Removing egg-info directories..."
+find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null
 
-# Optional: Remove virtual environment (commented out by default)
-# echo "Removing virtual environment..."
-# rm -rf ocr_env/
+# Remove build directories
+echo "Removing build directories..."
+find . -type d -name "build" -exec rm -rf {} + 2>/dev/null
+find . -type d -name "dist" -exec rm -rf {} + 2>/dev/null
 
-echo "Cleanup complete!"
-echo ""
-echo "Files kept:"
-echo "- Core application files"
-echo "- Test suite in /test directory"
-echo "- Test bills in /test_bills directory"
-echo "- Ground truth data"
-echo "- API and deployment configurations"
-echo "- start_api.sh (kept for convenience)"
-echo ""
-echo "To remove virtual environment as well, uncomment the relevant lines in this script."
+# Remove .env files that are copies (keeping the main .env if it exists)
+echo "Removing duplicate .env files..."
+find . -type f -name ".env.*" -delete 2>/dev/null
+
+# Remove IDE-specific directories (optional - uncomment if needed)
+# echo "Removing IDE directories..."
+# rm -rf .vscode 2>/dev/null
+# rm -rf .idea 2>/dev/null
+
+# Clean up empty directories
+echo "Removing empty directories..."
+find . -type d -empty -delete 2>/dev/null
+
+echo "✅ Cleanup complete!"
+
+# Show disk space saved
+if command -v du &> /dev/null; then
+    echo ""
+    echo "📊 Remaining project size:"
+    du -sh . 2>/dev/null || echo "Could not calculate size"
+fi

@@ -20,4 +20,9 @@ numReplicas = 1
 PYTHONUNBUFFERED = "1"
 TRANSFORMERS_CACHE = "/app/.cache/huggingface"
 HF_HOME = "/app/.cache/huggingface"
+TORCH_HOME = "/app/.cache/torch"
+HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
+HF_HUB_OFFLINE = "0"
 UVICORN_TIMEOUT_KEEP_ALIVE = "120"
+# Increase timeout for model loading
+UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN = "120"

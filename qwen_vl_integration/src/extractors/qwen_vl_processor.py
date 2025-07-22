@@ -11,8 +11,13 @@ from pydantic import BaseModel
 try:
     from qwen_vl_utils import process_vision_info
 except ImportError:
-    logger.warning("qwen_vl_utils not installed. Please install with: pip install qwen-vl-utils")
     process_vision_info = None
+    import warnings
+    warnings.warn(
+        "qwen_vl_utils not installed. This is required for Qwen2-VL models. "
+        "Please install with: pip install qwen-vl-utils",
+        ImportWarning
+    )
 
 from ..models import DEWABill, SEWABill
 from ..utils.prompt_builder import PromptBuilder

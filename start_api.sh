@@ -9,7 +9,7 @@ if [ ! -d "ocr_env" ]; then
     echo "Virtual environment 'ocr_env' not found. Please create it first with:"
     echo "python3 -m venv ocr_env"
     echo "source ocr_env/bin/activate"
-    echo "pip install -r api/requirements.txt"
+    echo "pip install -r requirements.txt"
     exit 1
 fi
 

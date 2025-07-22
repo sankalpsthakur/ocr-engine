@@ -16,7 +16,7 @@ This project provides a high-accuracy OCR service using Surya OCR with a FastAPI
 
 ```bash
 # Install dependencies
-pip install -r api/requirements.txt
+pip install -r requirements.txt
 
 # Run the API server
 python api/main.py
@@ -70,7 +70,6 @@ python test/test_deployment.py
 surya/
 ├── api/
 │   ├── main.py          # FastAPI server
-│   ├── requirements.txt  # API dependencies
 │   └── test_api.py      # API tests
 ├── test/
 │   ├── comprehensive_evaluation.py  # Full CER evaluation

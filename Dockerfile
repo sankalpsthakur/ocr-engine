@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Copy requirements
-COPY api/requirements.txt .
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -45,10 +45,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY api/ /app/api/
+COPY qwen_vl_integration/ /app/qwen_vl_integration/
 COPY test/ocr_postprocessing.py /app/
 
-# Create temp directory
-RUN mkdir -p /tmp/surya_ocr_api && \
+# Create temp and cache directories
+RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
     chown -R appuser:appuser /app /tmp/surya_ocr_api
 
 # Switch to non-root user
@@ -61,7 +62,12 @@ USER appuser
 EXPOSE ${PORT:-8080}
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    TRANSFORMERS_CACHE=/app/.cache/huggingface \
+    HF_HOME=/app/.cache/huggingface \
+    TORCH_HOME=/app/.cache/torch \
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    HF_HUB_OFFLINE=0
 
 # Health check - use Railway's PORT
 HEALTHCHECK --interval=30s --timeout=30s --start-period=300s --retries=10 \

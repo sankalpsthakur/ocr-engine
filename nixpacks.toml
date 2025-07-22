@@ -1,12 +1,12 @@
 # Nixpacks configuration for OCR Engine deployment
 
 [phases.setup]
-nixPkgs = ["python310", "gcc", "git", "wget", "glib", "xorg.libSM", "xorg.libXext", "xorg.libXrender"]
+nixPkgs = ["python310", "gcc", "g++", "git", "wget", "glib", "xorg.libSM", "xorg.libXext", "xorg.libXrender", "libGL", "libgthread-2.0", "libgomp", "libquadmath"]
 
 [phases.install]
 cmds = [
     "pip install --upgrade pip",
-    "pip install -r api/requirements.txt"
+    "pip install -r requirements.txt"
 ]
 
 [phases.build]
@@ -23,3 +23,8 @@ cmd = "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"
 PYTHONUNBUFFERED = "1"
 TRANSFORMERS_CACHE = "/app/.cache/huggingface"
 HF_HOME = "/app/.cache/huggingface"
+TORCH_HOME = "/app/.cache/torch"
+# Disable symlinks in transformers cache (helps with some deployment environments)
+HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
+# Set offline mode to false to ensure models can be downloaded
+HF_HUB_OFFLINE = "0"

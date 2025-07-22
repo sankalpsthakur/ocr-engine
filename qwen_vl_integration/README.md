@@ -72,7 +72,7 @@ Extract OCR text only with post-processing.
 
 ```bash
 # Install Qwen VL dependencies
-pip install -r qwen_vl_integration/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Usage
