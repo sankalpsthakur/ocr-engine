@@ -147,8 +147,8 @@ def run_surya_ocr(file_path: Path) -> Dict:
         
         # Import Surya functions
         logger.debug("Importing Surya functions...")
-        from surya.ocr import run_ocr
-        from surya.models import load_model, load_processor
+        from surya.detection import DetectionPredictor
+        from surya.recognition import RecognitionPredictor
         
         # Load models if not already loaded
         logger.debug("Loading Surya models...")
@@ -161,16 +161,9 @@ def run_surya_ocr(file_path: Path) -> Dict:
             rec_predictor = surya_predictors['recognition']
         else:
             logger.debug("Loading models fresh")
-            # Load detection model
-            det_model = load_model("detection")
-            det_processor = load_processor("detection")
-            
-            # Load recognition model
-            rec_model = load_model("recognition")
-            rec_processor = load_processor("recognition")
-            
-            det_predictor = (det_model, det_processor)
-            rec_predictor = (rec_model, rec_processor)
+            # Load predictors
+            det_predictor = DetectionPredictor()
+            rec_predictor = RecognitionPredictor()
         
         model_load_time = (time.time() - model_start) * 1000
         logger.debug(f"Models loaded", extra={'load_time_ms': round(model_load_time, 2)})
@@ -179,8 +172,15 @@ def run_surya_ocr(file_path: Path) -> Dict:
         logger.info("Starting OCR processing...")
         ocr_start = time.time()
         
-        # Use Surya's run_ocr which handles detection and recognition
-        results = run_ocr([image], [str(file_path)], det_predictor, rec_predictor)
+        # Run detection and recognition
+        # First detect text regions
+        det_results = det_predictor([image])
+        
+        # Then run recognition on detected regions
+        rec_results = rec_predictor([image], det_predictor=det_predictor)
+        
+        # Get the first result (we only process one image)
+        results = rec_results
         
         ocr_time = (time.time() - ocr_start) * 1000
         logger.info(f"OCR processing complete", extra={'ocr_time_ms': round(ocr_time, 2)})
@@ -484,8 +484,8 @@ async def startup_event():
     try:
         # Import Surya modules
         logger.info("Importing Surya modules...")
-        from surya.models import load_model, load_processor
-        from surya.ocr import run_ocr
+        from surya.detection import DetectionPredictor
+        from surya.recognition import RecognitionPredictor
         logger.info("✓ Surya modules imported successfully")
         
         # Load models properly
@@ -495,17 +495,15 @@ async def startup_event():
         global surya_predictors
         surya_predictors = {}
         
-        # Load detection model and processor
-        logger.debug("Loading detection model...")
-        det_model = load_model("detection")
-        det_processor = load_processor("detection")
-        surya_predictors['detection'] = (det_model, det_processor)
+        # Load detection and recognition predictors
+        logger.debug("Loading detection predictor...")
+        det_predictor = DetectionPredictor()
+        logger.debug("Loading recognition predictor...")
+        rec_predictor = RecognitionPredictor()
         
-        # Load recognition model and processor
-        logger.debug("Loading recognition model...")
-        rec_model = load_model("recognition")
-        rec_processor = load_processor("recognition")
-        surya_predictors['recognition'] = (rec_model, rec_processor)
+        # Store predictors
+        surya_predictors['detection'] = det_predictor
+        surya_predictors['recognition'] = rec_predictor
         
         predictor_time = (time.time() - predictor_start) * 1000
         logger.info("✓ Surya models loaded", extra={
