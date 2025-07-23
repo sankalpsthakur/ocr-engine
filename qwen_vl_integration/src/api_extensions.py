@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from PIL import Image
 import torch
 
-from qwen_vl_integration.src.extractors import QwenVLProcessor
-from qwen_vl_integration.src.models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
-from qwen_vl_integration.src.utils import ImagePreprocessor
+from .extractors import QwenVLProcessor
+from .models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
+from .utils import ImagePreprocessor
 
 # Import centralized logging if available
 try:
@@ -235,7 +235,7 @@ def add_qwen_routes(app: FastAPI):
             logger.debug("Applying OCR post-processing...")
             postprocess_start = time.time()
             
-            from qwen_vl_integration.src.utils.ocr_postprocessor import process_surya_output
+            from .utils.ocr_postprocessor import process_surya_output
             cleaned_text = process_surya_output(ocr_result["text"])
             
             postprocess_duration = (time.time() - postprocess_start) * 1000
@@ -401,7 +401,7 @@ def add_qwen_routes(app: FastAPI):
             # Apply post-processing if requested
             text = ocr_result["text"]
             if apply_postprocessing:
-                from qwen_vl_integration.src.utils.ocr_postprocessor import process_surya_output
+                from .utils.ocr_postprocessor import process_surya_output
                 text = process_surya_output(text)
             
             return {

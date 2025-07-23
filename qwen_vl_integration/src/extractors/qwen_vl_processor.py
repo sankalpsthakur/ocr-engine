@@ -22,10 +22,10 @@ except ImportError:
         ImportWarning
     )
 
-from qwen_vl_integration.src.models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
-from qwen_vl_integration.src.utils.prompt_builder import PromptBuilder
-from qwen_vl_integration.src.utils.cache_manager import ModelCacheManager
-from qwen_vl_integration.src.extractors.spatial_reasoner import SpatialReasoner
+from ..models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
+from ..utils.prompt_builder import PromptBuilder
+from ..utils.cache_manager import ModelCacheManager
+from .spatial_reasoner import SpatialReasoner
 
 # Import centralized logging if available, otherwise use basic logging
 try:
