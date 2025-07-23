@@ -51,9 +51,13 @@ COPY test/ocr_postprocessing.py /app/
 RUN touch /app/__init__.py && \
     find /app/api -type d -exec touch {}/__init__.py \;
 
-# Create temp and cache directories
-RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \
-    chown -R appuser:appuser /app /tmp/surya_ocr_api
+# Create temp and cache directories with Surya model cache
+RUN mkdir -p /tmp/surya_ocr_api \
+             /app/.cache/huggingface \
+             /app/.cache/torch \
+             /app/.cache/datalab/models \
+             /home/appuser/.cache/datalab/models && \
+    chown -R appuser:appuser /app /tmp/surya_ocr_api /home/appuser
 
 # Switch to non-root user
 USER appuser
@@ -63,8 +67,8 @@ RUN echo '#!/usr/bin/env python3\n\
 import os\n\
 import sys\n\
 os.environ["HF_HOME"] = "/app/.cache/huggingface"\n\
-os.environ["TRANSFORMERS_CACHE"] = "/app/.cache/huggingface"\n\
 os.environ["TORCH_HOME"] = "/app/.cache/torch"\n\
+os.environ["SURYA_MODEL_CACHE_DIR"] = "/home/appuser/.cache/datalab/models"\n\
 print("Environment configured for model downloads")\n\
 print("Models will be downloaded on first request to keep image size small")\n\
 # Validate imports only\n\
@@ -85,9 +89,9 @@ EXPOSE ${PORT:-8080}
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    TRANSFORMERS_CACHE=/app/.cache/huggingface \
     HF_HOME=/app/.cache/huggingface \
     TORCH_HOME=/app/.cache/torch \
+    SURYA_MODEL_CACHE_DIR=/home/appuser/.cache/datalab/models \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
     HF_HUB_OFFLINE=0
 

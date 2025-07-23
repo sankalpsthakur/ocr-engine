@@ -10,12 +10,12 @@ Pillow>=10.4.0
 python-magic==0.4.27
 
 # Machine learning dependencies
-transformers>=4.45.0
+transformers==4.44.2
 torch>=2.0.0
 torchvision>=0.15.0
 accelerate>=0.24.0
 bitsandbytes>=0.41.0  # For 4-bit quantization
-qwen-vl-utils  # Required for Qwen2-VL process_vision_info
+qwen-vl-utils==0.0.8  # Required for Qwen2-VL process_vision_info
 
 # Additional utilities
 numpy>=1.24.0
