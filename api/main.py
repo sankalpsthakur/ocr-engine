@@ -35,6 +35,12 @@ except ImportError:
 setup_logging("ocr-engine")
 logger = get_logger(__name__)
 
+# Add parent directory to sys.path for qwen_vl_integration imports
+parent_dir = str(Path(__file__).parent.parent)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+    logger.debug(f"Added to sys.path early: {parent_dir}")
+
 app = FastAPI(
     title="Surya OCR API with Qwen Enhancement",
     description="OCR service powered by Surya with Qwen3-0.6B for structured data extraction",
@@ -537,11 +543,6 @@ async def startup_event():
     qwen_start = time.time()
     
     try:
-        # Add parent directory to path
-        parent_dir = str(Path(__file__).parent.parent)
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-            logger.debug(f"Added to sys.path: {parent_dir}")
         
         # Check if qwen_vl_integration exists
         qwen_path = Path(parent_dir) / "qwen_vl_integration"
