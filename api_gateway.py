@@ -202,20 +202,32 @@ async def startup_event():
     """Check services on startup"""
     logger.info("API Gateway starting up...")
     
-    # Wait a moment for services to be ready
-    await asyncio.sleep(2)
+    # In Docker environment, services might take longer to start
+    max_retries = 10
+    retry_delay = 3
     
-    # Check service health
-    surya_health = await check_service_health(SURYA_SERVICE_URL, "Surya OCR")
-    qwen_health = await check_service_health(QWEN_SERVICE_URL, "Qwen 2.5-VL")
-    
-    logger.info(f"Surya OCR Service: {surya_health}")
-    logger.info(f"Qwen 2.5-VL Service: {qwen_health}")
-    
-    if surya_health == "unreachable":
-        logger.warning("Surya OCR service is not available")
-    if qwen_health == "unreachable":
-        logger.warning("Qwen 2.5-VL service is not available")
+    for attempt in range(max_retries):
+        # Check service health
+        surya_health = await check_service_health(SURYA_SERVICE_URL, "Surya OCR")
+        qwen_health = await check_service_health(QWEN_SERVICE_URL, "Qwen 2.5-VL")
+        
+        if surya_health == "healthy" and qwen_health == "healthy":
+            logger.info(f"Surya OCR Service: {surya_health}")
+            logger.info(f"Qwen 2.5-VL Service: {qwen_health}")
+            logger.info("All services are healthy!")
+            break
+        
+        if attempt < max_retries - 1:
+            logger.info(f"Services not ready yet (attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
+        else:
+            logger.info(f"Surya OCR Service: {surya_health}")
+            logger.info(f"Qwen 2.5-VL Service: {qwen_health}")
+            
+            if surya_health == "unreachable":
+                logger.warning("Surya OCR service is not available")
+            if qwen_health == "unreachable":
+                logger.warning("Qwen 2.5-VL service is not available")
     
     logger.info("API Gateway startup complete")
 

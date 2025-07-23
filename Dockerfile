@@ -54,9 +54,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY services/ /app/services/
 COPY api_gateway.py /app/
 COPY start_api.sh /app/
+COPY docker_entrypoint.sh /app/
 
 # Make scripts executable
-RUN chmod +x /app/start_api.sh
+RUN chmod +x /app/start_api.sh /app/docker_entrypoint.sh
 
 # Create temp and cache directories
 RUN mkdir -p /tmp/surya_ocr_api \
@@ -68,29 +69,6 @@ RUN mkdir -p /tmp/surya_ocr_api \
 
 # Switch to non-root user
 USER appuser
-
-# Create a startup script that starts all services
-RUN echo '#!/bin/bash\n\
-echo "Starting OCR Engine Microservices in Docker..."\n\
-\n\
-# Start Surya service in background\n\
-cd /app/services/surya\n\
-python surya_service.py &\n\
-SURYA_PID=$!\n\
-\n\
-# Start Qwen service in background\n\
-cd /app/services/qwen\n\
-python qwen_service.py &\n\
-QWEN_PID=$!\n\
-\n\
-# Wait a moment for services to start\n\
-sleep 10\n\
-\n\
-# Start API Gateway in foreground\n\
-cd /app\n\
-echo "Starting API Gateway on port ${PORT:-8080}..."\n\
-python api_gateway.py\n\
-' > /app/start_services.sh && chmod +x /app/start_services.sh
 
 # Expose port (Railway will set PORT env var)
 EXPOSE ${PORT:-8080}
@@ -111,4 +89,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=300s --retries=10 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Run the microservices
-CMD ["/app/start_services.sh"]
+CMD ["/app/docker_entrypoint.sh"]
