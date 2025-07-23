@@ -125,43 +125,75 @@ def validate_image_file(file_content: bytes, filename: str) -> bytes:
 
 def run_surya_ocr(file_path: Path) -> Dict:
     """Run Surya OCR on a file using direct API"""
-    start_time = datetime.now()
+    start_time = time.time()
+    logger.info(f"Starting Surya OCR processing", extra={
+        'file_path': str(file_path),
+        'file_size': os.path.getsize(file_path) / 1024,  # KB
+    })
     
     try:
         # Load image
+        logger.debug("Loading image...")
         image = Image.open(file_path)
+        logger.debug(f"Image loaded", extra={
+            'mode': image.mode,
+            'size': image.size,
+            'format': image.format
+        })
+        
         if image.mode != 'RGB':
+            logger.debug(f"Converting image from {image.mode} to RGB")
             image = image.convert('RGB')
         
-        # Check if predictors are loaded
-        if 'surya_predictors' not in globals():
-            from surya.models import load_predictors
-            global surya_predictors
-            surya_predictors = load_predictors()
+        # Import Surya functions
+        logger.debug("Importing Surya functions...")
+        from surya.ocr import run_ocr
+        from surya.models import load_model, load_processor
         
-        # Get detection and recognition predictors
-        det_predictor = surya_predictors['detection']
-        rec_predictor = surya_predictors['recognition']
+        # Load models if not already loaded
+        logger.debug("Loading Surya models...")
+        model_start = time.time()
         
-        # Run OCR
-        # First run detection
-        detection_results = det_predictor([image])
+        # Use the global predictors if available
+        if 'surya_predictors' in globals() and 'detection' in surya_predictors:
+            logger.debug("Using pre-loaded predictors")
+            det_predictor = surya_predictors['detection']
+            rec_predictor = surya_predictors['recognition']
+        else:
+            logger.debug("Loading models fresh")
+            # Load detection model
+            det_model = load_model("detection")
+            det_processor = load_processor("detection")
+            
+            # Load recognition model
+            rec_model = load_model("recognition")
+            rec_processor = load_processor("recognition")
+            
+            det_predictor = (det_model, det_processor)
+            rec_predictor = (rec_model, rec_processor)
         
-        # Then run recognition with detection results
-        ocr_results = rec_predictor(
-            [image],
-            det_predictor=det_predictor,
-            highres_images=None,
-            math_mode=True
-        )
+        model_load_time = (time.time() - model_start) * 1000
+        logger.debug(f"Models loaded", extra={'load_time_ms': round(model_load_time, 2)})
+        
+        # Run OCR using Surya's run_ocr function
+        logger.info("Starting OCR processing...")
+        ocr_start = time.time()
+        
+        # Use Surya's run_ocr which handles detection and recognition
+        results = run_ocr([image], [str(file_path)], det_predictor, rec_predictor)
+        
+        ocr_time = (time.time() - ocr_start) * 1000
+        logger.info(f"OCR processing complete", extra={'ocr_time_ms': round(ocr_time, 2)})
         
         # Extract text from results
         text_parts = []
         total_confidence = 0
         confidence_count = 0
         
-        if ocr_results and len(ocr_results) > 0:
-            result = ocr_results[0]  # Get first (and only) result
+        if results and len(results) > 0:
+            result = results[0]  # Get first (and only) result
+            logger.debug(f"Processing {len(result.text_lines) if hasattr(result, 'text_lines') else 0} text lines")
+            
             if hasattr(result, 'text_lines'):
                 for line in result.text_lines:
                     text_parts.append(line.text)
@@ -172,20 +204,35 @@ def run_surya_ocr(file_path: Path) -> Dict:
         # Calculate average confidence
         avg_confidence = (total_confidence / confidence_count) if confidence_count > 0 else None
         
-        # Calculate processing time
-        processing_time = (datetime.now() - start_time).total_seconds()
+        # Calculate total processing time
+        total_time = (time.time() - start_time)
+        
+        logger.info(f"Surya OCR completed successfully", extra={
+            'total_time_s': round(total_time, 2),
+            'text_length': len('\n'.join(text_parts)),
+            'line_count': len(text_parts),
+            'avg_confidence': round(avg_confidence, 3) if avg_confidence else None
+        })
         
         return {
             "status": "success",
             "text": '\n'.join(text_parts),
             "confidence": avg_confidence,
-            "processing_time": processing_time
+            "processing_time": total_time
         }
         
     except Exception as e:
+        error_time = time.time() - start_time
+        logger.error(f"Surya OCR failed", extra={
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'time_before_error_s': round(error_time, 2)
+        }, exc_info=True)
+        
         return {
             "status": "error",
-            "error": str(e)
+            "error": str(e),
+            "processing_time": error_time
         }
 
 @app.get("/health", response_model=HealthResponse)
@@ -244,9 +291,23 @@ async def process_single_image(
             tmp.write(validated_content)
             temp_path = Path(tmp.name)
         
-        # Run OCR
+        # Run OCR with timeout
         ocr_start = time.time()
-        result = run_surya_ocr(temp_path)
+        
+        # Import timeout utility
+        from utils import run_with_timeout, TimeoutException
+        
+        try:
+            # Run OCR with 60-second timeout
+            result = run_with_timeout(run_surya_ocr, args=(temp_path,), timeout_seconds=60)
+        except TimeoutException:
+            result = {
+                "status": "error",
+                "error": "OCR processing timed out after 60 seconds",
+                "processing_time": 60.0
+            }
+            logger.error(f"OCR timed out for file: {file.filename}")
+        
         ocr_duration = (time.time() - ocr_start) * 1000
         
         log_performance(logger, "surya_ocr", ocr_duration, result.get('status') == 'success', 
@@ -421,23 +482,34 @@ async def startup_event():
         logger.error(f"Failed to import surya module: {e}", exc_info=True)
     
     try:
-        # Import Surya predictors
+        # Import Surya modules
         logger.info("Importing Surya modules...")
-        from surya.detection import DetectionPredictor
-        from surya.recognition import RecognitionPredictor
-        from surya.models import load_predictors
+        from surya.models import load_model, load_processor
+        from surya.ocr import run_ocr
         logger.info("✓ Surya modules imported successfully")
         
-        # Load all predictors (detection, recognition, etc.)
-        logger.info("Loading Surya predictors...")
+        # Load models properly
+        logger.info("Loading Surya models...")
         predictor_start = time.time()
         
         global surya_predictors
-        surya_predictors = load_predictors()
+        surya_predictors = {}
+        
+        # Load detection model and processor
+        logger.debug("Loading detection model...")
+        det_model = load_model("detection")
+        det_processor = load_processor("detection")
+        surya_predictors['detection'] = (det_model, det_processor)
+        
+        # Load recognition model and processor
+        logger.debug("Loading recognition model...")
+        rec_model = load_model("recognition")
+        rec_processor = load_processor("recognition")
+        surya_predictors['recognition'] = (rec_model, rec_processor)
         
         predictor_time = (time.time() - predictor_start) * 1000
-        logger.info("✓ Surya predictors loaded", extra={
-            'predictors': list(surya_predictors.keys()),
+        logger.info("✓ Surya models loaded", extra={
+            'models': list(surya_predictors.keys()),
             'load_time_ms': round(predictor_time, 2)
         })
         
