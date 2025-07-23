@@ -10,9 +10,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 24G
         reservations:
-          memory: 4G
+          memory: 16G
     restart: unless-stopped
     environment:
       - PORT=8080
