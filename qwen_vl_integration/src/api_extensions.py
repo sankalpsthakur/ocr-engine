@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from PIL import Image
 import torch
 
-from .extractors import QwenVLProcessor
-from .models import DEWABill, SEWABill
-from .utils import ImagePreprocessor
+from qwen_vl_integration.src.extractors import QwenVLProcessor
+from qwen_vl_integration.src.models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
+from qwen_vl_integration.src.utils import ImagePreprocessor
 
 # Import centralized logging if available
 try:
@@ -167,7 +167,8 @@ def add_qwen_routes(app: FastAPI):
     async def process_with_qwen_vl(
         file: UploadFile = File(...),
         enable_reasoning: bool = Query(True, description="Enable spatial reasoning"),
-        provider: Optional[str] = Query(None, description="Provider (DEWA/SEWA)")
+        provider: Optional[str] = Query(None, description="Provider (DEWA/SEWA)"),
+        resource_type: Optional[str] = Query(None, description="Resource type (energy/water/waste/utility)", regex="^(energy|water|waste|utility)$")
     ):
         """
         Process utility bill with Qwen Vision-Language model.
@@ -184,7 +185,8 @@ def add_qwen_routes(app: FastAPI):
             'request_id': request_id,
             'file_name': file.filename,
             'enable_reasoning': enable_reasoning,
-            'provider': provider
+            'provider': provider,
+            'resource_type': resource_type
         })
         
         try:
@@ -233,7 +235,7 @@ def add_qwen_routes(app: FastAPI):
             logger.debug("Applying OCR post-processing...")
             postprocess_start = time.time()
             
-            from .utils.ocr_postprocessor import process_surya_output
+            from qwen_vl_integration.src.utils.ocr_postprocessor import process_surya_output
             cleaned_text = process_surya_output(ocr_result["text"])
             
             postprocess_duration = (time.time() - postprocess_start) * 1000
@@ -263,15 +265,23 @@ def add_qwen_routes(app: FastAPI):
                     processor.process_with_reasoning,
                     image,
                     cleaned_text,
-                    provider
+                    provider,
+                    resource_type
                 )
             else:
                 result = await asyncio.to_thread(
                     processor.process_direct,
                     image,
                     cleaned_text,
-                    provider
+                    provider,
+                    resource_type
                 )
+            
+            # Calculate VLM duration
+            vlm_duration = (time.time() - vlm_start) * 1000
+            log_performance(logger, "qwen_vl_processing", vlm_duration, "error" not in result,
+                          method="reasoning" if enable_reasoning else "direct",
+                          provider=result.get('provider_name'))
             
             # Check for errors
             if "error" in result:
@@ -280,8 +290,8 @@ def add_qwen_routes(app: FastAPI):
             
             logger.info(f"Qwen VL processing complete - Provider detected: {result.get('provider_name')}")
             
-            # Calculate processing time
-            processing_time = (datetime.now() - start_time).total_seconds()
+            # Calculate total processing time
+            processing_time = time.time() - request_start
             
             # Prepare response
             response = QwenVLResponse(
@@ -316,7 +326,7 @@ def add_qwen_routes(app: FastAPI):
     
     @app.get("/ocr/qwen-vl/schema/{provider}")
     async def get_qwen_vl_schema(provider: str):
-        """Get the Pydantic schema for a specific provider"""
+        """Get the Pydantic schema for a specific provider (legacy endpoint)"""
         provider = provider.upper()
         
         if provider == "DEWA":
@@ -327,6 +337,39 @@ def add_qwen_routes(app: FastAPI):
             raise HTTPException(status_code=400, detail="Provider must be DEWA or SEWA")
         
         return JSONResponse(content=schema)
+    
+    @app.get("/ocr/qwen-vl/schema")
+    async def get_resource_schema(
+        resource_type: str = Query(..., description="Resource type (energy/water/waste/utility)", regex="^(energy|water|waste|utility)$"),
+        provider: Optional[str] = Query(None, description="Provider (DEWA/SEWA) - only for utility type")
+    ):
+        """Get the Pydantic schema for a specific resource type"""
+        schema_map = {
+            "energy": EnergyBill,
+            "water": WaterBill,
+            "waste": WasteBill
+        }
+        
+        if resource_type == "utility":
+            if not provider:
+                raise HTTPException(status_code=400, detail="Provider must be specified for utility resource type")
+            provider = provider.upper()
+            if provider == "DEWA":
+                schema_class = DEWABill
+            elif provider == "SEWA":
+                schema_class = SEWABill
+            else:
+                raise HTTPException(status_code=400, detail="Provider must be DEWA or SEWA")
+        else:
+            schema_class = schema_map.get(resource_type)
+            if not schema_class:
+                raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+        
+        return JSONResponse(content={
+            "resource_type": resource_type,
+            "provider": provider,
+            "schema": schema_class.model_json_schema()
+        })
     
     @app.post("/ocr/qwen-vl/extract-text")
     async def extract_text_only(
@@ -358,7 +401,7 @@ def add_qwen_routes(app: FastAPI):
             # Apply post-processing if requested
             text = ocr_result["text"]
             if apply_postprocessing:
-                from .utils.ocr_postprocessor import process_surya_output
+                from qwen_vl_integration.src.utils.ocr_postprocessor import process_surya_output
                 text = process_surya_output(text)
             
             return {

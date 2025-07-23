@@ -22,10 +22,10 @@ except ImportError:
         ImportWarning
     )
 
-from ..models import DEWABill, SEWABill
-from ..utils.prompt_builder import PromptBuilder
-from ..utils.cache_manager import ModelCacheManager
-from .spatial_reasoner import SpatialReasoner
+from qwen_vl_integration.src.models import DEWABill, SEWABill, EnergyBill, WaterBill, WasteBill
+from qwen_vl_integration.src.utils.prompt_builder import PromptBuilder
+from qwen_vl_integration.src.utils.cache_manager import ModelCacheManager
+from qwen_vl_integration.src.extractors.spatial_reasoner import SpatialReasoner
 
 # Import centralized logging if available, otherwise use basic logging
 try:
@@ -199,7 +199,8 @@ class QwenVLProcessor:
     def process_with_reasoning(self, 
                              image: Union[str, Path, Image.Image], 
                              ocr_text: str, 
-                             provider: str = None) -> Dict[str, Any]:
+                             provider: str = None,
+                             resource_type: str = None) -> Dict[str, Any]:
         """
         Process image with chain-of-thought spatial reasoning.
         
@@ -226,12 +227,16 @@ class QwenVLProcessor:
                 logger.debug(f"Loaded image from path: {image.size}")
             
             # Auto-detect provider if not specified
-            if not provider:
+            if not provider and (resource_type == "utility" or resource_type is None):
                 provider = self._detect_provider(ocr_text)
                 logger.info(f"Auto-detected provider: {provider}")
             
-            # Get appropriate schema
-            schema_class = DEWABill if provider == "DEWA" else SEWABill
+            # Get appropriate schema based on resource type
+            schema_class = self._get_schema_for_resource_type(resource_type, provider)
+            logger.info(f"Using schema: {schema_class.__name__}", extra={
+                'resource_type': resource_type,
+                'provider': provider
+            })
             
             # Step 1: Extract spatial reasoning
             logger.info("Extracting spatial understanding...")
@@ -259,7 +264,8 @@ class QwenVLProcessor:
     def process_direct(self, 
                       image: Union[str, Path, Image.Image], 
                       ocr_text: str, 
-                      provider: str = None) -> Dict[str, Any]:
+                      provider: str = None,
+                      resource_type: str = None) -> Dict[str, Any]:
         """
         Direct extraction without spatial reasoning (faster but less accurate).
         
@@ -276,12 +282,16 @@ class QwenVLProcessor:
             if isinstance(image, (str, Path)):
                 image = Image.open(image)
             
-            # Auto-detect provider
-            if not provider:
+            # Auto-detect provider if not specified and using utility resource type
+            if not provider and (resource_type == "utility" or resource_type is None):
                 provider = self._detect_provider(ocr_text)
             
-            # Get schema
-            schema_class = DEWABill if provider == "DEWA" else SEWABill
+            # Get appropriate schema based on resource type
+            schema_class = self._get_schema_for_resource_type(resource_type, provider)
+            logger.info(f"Using schema: {schema_class.__name__}", extra={
+                'resource_type': resource_type,
+                'provider': provider
+            })
             
             # Build prompt for direct extraction
             prompt = self.prompt_builder.build_direct_extraction_prompt(
@@ -516,3 +526,18 @@ class QwenVLProcessor:
                 missing.append(field)
         
         return missing
+    
+    def _get_schema_for_resource_type(self, resource_type: str, provider: str = None) -> BaseModel:
+        """Get the appropriate schema based on resource type and provider"""
+        if resource_type == "energy":
+            return EnergyBill
+        elif resource_type == "water":
+            return WaterBill
+        elif resource_type == "waste":
+            return WasteBill
+        elif resource_type == "utility" or resource_type is None:
+            # Fall back to provider-specific schemas
+            return DEWABill if provider == "DEWA" else SEWABill
+        else:
+            # Default to energy if unknown
+            return EnergyBill
