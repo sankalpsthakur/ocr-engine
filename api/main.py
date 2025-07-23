@@ -23,8 +23,13 @@ from PIL import Image
 import magic
 
 # Import logging configuration
-from logging_config import setup_logging, get_logger, set_request_id, log_performance, log_memory_usage
-from monitoring import record_request_start, record_request_end, get_application_metrics, ResourceMonitor
+try:
+    from .logging_config import setup_logging, get_logger, set_request_id, log_performance, log_memory_usage
+    from .monitoring import record_request_start, record_request_end, get_application_metrics, ResourceMonitor
+except ImportError:
+    # When running as a script
+    from logging_config import setup_logging, get_logger, set_request_id, log_performance, log_memory_usage
+    from monitoring import record_request_start, record_request_end, get_application_metrics, ResourceMonitor
 
 # Setup logging
 setup_logging("ocr-engine")
@@ -187,7 +192,6 @@ def run_surya_ocr(file_path: Path) -> Dict:
 async def health_check():
     """Health check endpoint"""
     # Check system health
-    from monitoring import ResourceMonitor
     health = ResourceMonitor.check_resource_health()
     
     return HealthResponse(
