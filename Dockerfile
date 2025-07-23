@@ -85,7 +85,7 @@ EXPOSE ${PORT:-8080}
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app \
+    PYTHONPATH=/app:/app/api \
     TRANSFORMERS_CACHE=/app/.cache/huggingface \
     HF_HOME=/app/.cache/huggingface \
     TORCH_HOME=/app/.cache/torch \
