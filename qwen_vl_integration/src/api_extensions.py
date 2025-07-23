@@ -182,7 +182,7 @@ def add_qwen_routes(app: FastAPI):
         
         logger.info(f"Qwen VL processing request started", extra={
             'request_id': request_id,
-            'filename': file.filename,
+            'file_name': file.filename,
             'enable_reasoning': enable_reasoning,
             'provider': provider
         })

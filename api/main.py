@@ -226,7 +226,7 @@ async def process_single_image(
     temp_path = None
     
     logger.info(f"OCR request received", extra={
-        'filename': file.filename,
+        'file_name': file.filename,
         'content_type': file.content_type
     })
     
@@ -250,7 +250,7 @@ async def process_single_image(
         ocr_duration = (time.time() - ocr_start) * 1000
         
         log_performance(logger, "surya_ocr", ocr_duration, result.get('status') == 'success', 
-                       filename=file.filename)
+                       file_name=file.filename)
         
         # Schedule cleanup
         background_tasks.add_task(cleanup_temp_file, str(temp_path))
@@ -268,7 +268,7 @@ async def process_single_image(
         )
         
         logger.info(f"OCR request completed", extra={
-            'filename': file.filename,
+            'file_name': file.filename,
             'status': result["status"],
             'total_duration_ms': round(total_duration, 2),
             'text_length': len(result.get("text", "")) if result.get("text") else 0,
