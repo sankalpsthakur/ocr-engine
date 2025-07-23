@@ -1,25 +1,31 @@
-# Multi-stage build for Surya OCR API - Optimized for Railway
-FROM python:3.10-slim AS builder
+# Multi-stage build for OCR Engine Microservices - Optimized for Railway
+FROM python:3.12-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     libmagic1 \
+    libmagic-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create working directory
 WORKDIR /build
 
-# Copy requirements
-COPY requirements.txt .
+# Copy all requirements files
+COPY gateway_requirements.txt .
+COPY services/surya/requirements.txt surya_requirements.txt
+COPY services/qwen/requirements.txt qwen_requirements.txt
 
-# Install Python dependencies
+# Install all Python dependencies in one environment (for container efficiency)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r gateway_requirements.txt && \
+    pip install --no-cache-dir -r surya_requirements.txt && \
+    pip install --no-cache-dir -r qwen_requirements.txt
 
 # Final stage
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -31,6 +37,7 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libglib2.0-0 \
     libgl1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -40,18 +47,18 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY api/ /app/api/
-COPY test/ocr_postprocessing.py /app/
+# Copy microservices code
+COPY services/ /app/services/
+COPY api_gateway.py /app/
+COPY start_api.sh /app/
 
-# Ensure __init__.py files exist for proper module imports
-RUN touch /app/__init__.py && \
-    find /app/api -type d -exec touch {}/__init__.py \;
+# Make scripts executable
+RUN chmod +x /app/start_api.sh
 
-# Create temp and cache directories with Surya model cache
+# Create temp and cache directories
 RUN mkdir -p /tmp/surya_ocr_api \
              /app/.cache/huggingface \
              /app/.cache/torch \
@@ -62,26 +69,28 @@ RUN mkdir -p /tmp/surya_ocr_api \
 # Switch to non-root user
 USER appuser
 
-# Create a minimal model validation script that doesn't download
-RUN echo '#!/usr/bin/env python3\n\
-import os\n\
-import sys\n\
-os.environ["HF_HOME"] = "/app/.cache/huggingface"\n\
-os.environ["TORCH_HOME"] = "/app/.cache/torch"\n\
-os.environ["SURYA_MODEL_CACHE_DIR"] = "/home/appuser/.cache/datalab/models"\n\
-print("Environment configured for model downloads")\n\
-print("Models will be downloaded on first request to keep image size small")\n\
-# Validate imports only\n\
-try:\n\
-    import surya\n\
-    import transformers\n\
-    import torch\n\
-    print("✓ All required packages installed successfully")\n\
-except ImportError as e:\n\
-    print(f"ERROR: Missing package: {e}")\n\
-    sys.exit(1)\n\
-' > /app/validate_install.py && \
-    python /app/validate_install.py
+# Create a startup script that starts all services
+RUN echo '#!/bin/bash\n\
+echo "Starting OCR Engine Microservices in Docker..."\n\
+\n\
+# Start Surya service in background\n\
+cd /app/services/surya\n\
+python surya_service.py &\n\
+SURYA_PID=$!\n\
+\n\
+# Start Qwen service in background\n\
+cd /app/services/qwen\n\
+python qwen_service.py &\n\
+QWEN_PID=$!\n\
+\n\
+# Wait a moment for services to start\n\
+sleep 10\n\
+\n\
+# Start API Gateway in foreground\n\
+cd /app\n\
+echo "Starting API Gateway on port ${PORT:-8080}..."\n\
+python api_gateway.py\n\
+' > /app/start_services.sh && chmod +x /app/start_services.sh
 
 # Expose port (Railway will set PORT env var)
 EXPOSE ${PORT:-8080}
@@ -93,11 +102,13 @@ ENV PYTHONUNBUFFERED=1 \
     TORCH_HOME=/app/.cache/torch \
     SURYA_MODEL_CACHE_DIR=/home/appuser/.cache/datalab/models \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
-    HF_HUB_OFFLINE=0
+    HF_HUB_OFFLINE=0 \
+    SURYA_SERVICE_URL=http://localhost:8001 \
+    QWEN_SERVICE_URL=http://localhost:8002
 
 # Health check - use Railway's PORT
 HEALTHCHECK --interval=30s --timeout=30s --start-period=300s --retries=10 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8080\")}/health').read()"
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Run the application - use Railway's PORT
-CMD ["sh", "-c", "python -m uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Run the microservices
+CMD ["/app/start_services.sh"]

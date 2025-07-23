@@ -8,30 +8,60 @@ OCR Engine combining Surya OCR (99.9% accuracy) with Qwen Vision-Language models
 
 ## Common Commands
 
-### Development Setup
+### Development Setup (Microservices Architecture)
+
+The OCR Engine uses a microservices architecture with separate virtual environments due to conflicting dependencies:
+
 ```bash
-# Create and activate virtual environment
-python3 -m venv ocr_env
-source ocr_env/bin/activate
+# 1. Clone repository and setup
+git clone https://github.com/sankalpsthakur/ocr-engine.git
+cd ocr-engine
+git pull origin main
 
-# Install all dependencies (includes Qwen VL)
-pip install -r requirements.txt
+# 2. Create separate virtual environments for microservices
+python3 -m venv gateway_env
+python3 -m venv surya_env  
+python3 -m venv qwen_env
 
-# Create required temp directory
+# 3. Install dependencies in each environment
+source gateway_env/bin/activate && pip install -r gateway_requirements.txt && deactivate
+source surya_env/bin/activate && pip install -r services/surya/requirements.txt && deactivate
+source qwen_env/bin/activate && pip install -r services/qwen/requirements.txt && deactivate
+
+# 4. Create required temp directory
 mkdir -p /tmp/surya_ocr_api
 ```
 
-### Running the API Server
+### Running the Microservices
+
+**Option 1: Automated startup (Recommended)**
 ```bash
-# Start API server on port 8080
+# Start all microservices automatically
 ./start_api.sh
+```
 
-# Or manually:
-source ocr_env/bin/activate
-python api/main.py
+**Option 2: Manual startup in separate terminals**
+```bash
+# Terminal 1: Start Surya OCR service (port 8001)
+source surya_env/bin/activate
+python services/surya/surya_service.py
 
-# Stop API server
-if test -f api.pid; then kill $(cat api.pid); rm api.pid; fi
+# Terminal 2: Start Qwen VL service (port 8002)  
+source qwen_env/bin/activate
+python services/qwen/qwen_service.py
+
+# Terminal 3: Start API Gateway (port 8080)
+source gateway_env/bin/activate
+python api_gateway.py
+```
+
+### Docker Deployment
+```bash
+# Build Docker image for microservices
+docker build -t ocr-engine .
+
+# Run with docker-compose
+docker compose up
 ```
 
 ### Testing
@@ -60,23 +90,59 @@ curl http://localhost:8080/health
 # Basic OCR (raw text extraction)
 curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr
 
-# Qwen VL processing with spatial reasoning
+# Qwen VL processing with spatial reasoning (PRIMARY TEST)
 curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr/qwen-vl/process
+
+# Process bill with specific resource type and reasoning
+curl -X POST -F 'file=@test_bills/DEWA.png' \
+"http://localhost:8080/ocr/qwen-vl/process?resource_type=water&enable_reasoning=true"
+
+# Process with energy schema (includes carbon emissions)
+curl -X POST -F 'file=@test_bills/DEWA.png' \
+"http://localhost:8080/ocr/qwen-vl/process?resource_type=energy&enable_reasoning=false"
 
 # Get DEWA/SEWA schema
 curl http://localhost:8080/ocr/qwen-vl/schema/DEWA
 ```
 
-### Docker Commands
+### Complete Setup & Testing Flow
 ```bash
-# Build Docker image
+# 1. Clone and setup
+git clone https://github.com/sankalpsthakur/ocr-engine.git
+cd ocr-engine
+git pull origin main
+
+# 2. Create separate virtual environments for microservices
+python3 -m venv gateway_env
+python3 -m venv surya_env  
+python3 -m venv qwen_env
+
+# 3. Install dependencies in each environment
+source gateway_env/bin/activate && pip install -r gateway_requirements.txt && deactivate
+source surya_env/bin/activate && pip install -r services/surya/requirements.txt && deactivate
+source qwen_env/bin/activate && pip install -r services/qwen/requirements.txt && deactivate
+
+# 4. Start all microservices locally
+./start_api.sh
+
+# 5. Test Docker build and deployment
 docker build -t ocr-engine .
+docker compose up
 
-# Run container
-docker run -p 8080:8080 -e PORT=8080 ocr-engine
+# 6. Test API endpoints (local or Docker)
+# Basic OCR (raw text extraction)
+curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr
 
-# Run with docker-compose
-docker-compose up
+# Qwen VL processing with spatial reasoning (PRIMARY TEST)
+curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr/qwen-vl/process
+
+# Process bill as water resource type
+curl -X POST -F 'file=@test_bills/DEWA.png' \
+"http://localhost:8080/ocr/qwen-vl/process?resource_type=water&enable_reasoning=true"
+
+# Process with energy schema (includes carbon emissions)
+curl -X POST -F 'file=@test_bills/DEWA.png' \
+"http://localhost:8080/ocr/qwen-vl/process?resource_type=energy&enable_reasoning=false"
 ```
 
 ### Cleanup
