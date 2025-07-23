@@ -2,7 +2,7 @@
 
 from typing import Optional, Dict, List
 from pydantic import BaseModel, Field
-from qwen_vl_integration.src.models.base import UtilityBillBase, ConsumptionData, EmissionsData
+from .base import UtilityBillBase, ConsumptionData, EmissionsData
 
 
 class EnergySourceBreakdown(BaseModel):

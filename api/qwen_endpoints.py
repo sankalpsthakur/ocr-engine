@@ -213,7 +213,7 @@ def add_qwen_routes(app: FastAPI):
             logger.info("Running Surya OCR...")
             ocr_start = time.time()
             
-            from api.main import run_surya_ocr
+            from .main import run_surya_ocr
             ocr_result = await asyncio.to_thread(run_surya_ocr, temp_path)
             
             ocr_duration = (time.time() - ocr_start) * 1000
@@ -390,7 +390,7 @@ def add_qwen_routes(app: FastAPI):
                 temp_path = Path(tmp.name)
             
             # Run OCR
-            from api.main import run_surya_ocr
+            from .main import run_surya_ocr
             ocr_result = await asyncio.to_thread(run_surya_ocr, temp_path)
             
             if ocr_result["status"] != "success":
