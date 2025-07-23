@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import threading
 from dataclasses import dataclass, field
 
-from logging_config import get_logger
+from .logging_config import get_logger
 
 logger = get_logger(__name__)
 

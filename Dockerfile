@@ -45,12 +45,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY api/ /app/api/
-COPY qwen_vl_integration/ /app/qwen_vl_integration/
 COPY test/ocr_postprocessing.py /app/
 
 # Ensure __init__.py files exist for proper module imports
 RUN touch /app/__init__.py && \
-    find /app/qwen_vl_integration -type d -exec touch {}/__init__.py \;
+    find /app/api -type d -exec touch {}/__init__.py \;
 
 # Create temp and cache directories
 RUN mkdir -p /tmp/surya_ocr_api /app/.cache/huggingface /app/.cache/torch && \

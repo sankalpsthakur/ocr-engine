@@ -22,9 +22,7 @@ from .utils import ImagePreprocessor
 
 # Import centralized logging if available
 try:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from api.logging_config import get_logger, log_performance, log_memory_usage, set_request_id
+    from .logging_config import get_logger, log_performance, log_memory_usage, set_request_id
     logger = get_logger(__name__)
 except ImportError:
     # Fallback to basic logging

@@ -543,20 +543,6 @@ async def startup_event():
     qwen_start = time.time()
     
     try:
-        
-        # Check if qwen_vl_integration exists
-        qwen_path = Path(parent_dir) / "qwen_vl_integration"
-        logger.debug(f"Checking for qwen_vl_integration at: {qwen_path}")
-        
-        if qwen_path.exists():
-            contents = list(qwen_path.iterdir())
-            logger.info("✓ qwen_vl_integration directory found", extra={
-                'path': str(qwen_path),
-                'contents': [item.name for item in contents]
-            })
-        else:
-            logger.error(f"qwen_vl_integration directory not found at {qwen_path}")
-        
         # Check for critical dependencies first
         try:
             import qwen_vl_utils
@@ -569,25 +555,16 @@ async def startup_event():
             logger.warning("Qwen VL endpoints will not be available")
             return
         
-        # Try to import the extension
-        logger.debug("Attempting to import qwen_vl_integration.api_extensions...")
-        import_method = None
+        # Import the Qwen endpoints
+        logger.debug("Attempting to import Qwen endpoints...")
         try:
-            from qwen_vl_integration.api_extensions import add_qwen_routes
-            import_method = "wrapper"
-            logger.debug("✓ Import successful using wrapper")
-        except ImportError as e1:
-            logger.debug(f"Wrapper import failed: {e1}")
-            try:
-                from qwen_vl_integration.src.api_extensions import add_qwen_routes
-                import_method = "direct"
-                logger.debug("✓ Import successful using direct import")
-            except ImportError as e2:
-                logger.error("Failed to import add_qwen_routes", extra={
-                    'wrapper_error': str(e1),
-                    'direct_error': str(e2)
-                })
-                raise
+            from .qwen_endpoints import add_qwen_routes
+            logger.debug("✓ Import successful")
+        except ImportError as e:
+            logger.error("Failed to import add_qwen_routes", extra={
+                'error': str(e)
+            })
+            raise
         
         add_qwen_routes(app)
         print("✓ Qwen VL extensions loaded successfully")

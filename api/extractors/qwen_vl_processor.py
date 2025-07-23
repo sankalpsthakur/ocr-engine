@@ -29,9 +29,7 @@ from .spatial_reasoner import SpatialReasoner
 
 # Import centralized logging if available, otherwise use basic logging
 try:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    from api.logging_config import get_logger, log_performance, log_memory_usage
+    from ..logging_config import get_logger, log_performance, log_memory_usage
     logger = get_logger(__name__)
 except ImportError:
     # Fallback to basic logging
