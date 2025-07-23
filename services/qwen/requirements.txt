@@ -1,0 +1,19 @@
+# Qwen 2.5-VL 3B Instruct Service Requirements
+# Latest transformers from GitHub for Qwen 2.5-VL support
+
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic>=2.5.3,<3.0.0
+
+# Qwen 2.5-VL dependencies
+git+https://github.com/huggingface/transformers
+qwen-vl-utils[decord]==0.0.8
+torch>=2.0.0
+torchvision>=0.15.0
+accelerate>=0.24.0
+bitsandbytes>=0.41.0
+Pillow>=10.4.0
+
+# Additional utilities
+numpy>=1.24.0
