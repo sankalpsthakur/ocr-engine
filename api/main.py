@@ -301,7 +301,7 @@ async def process_single_image(
         ocr_start = time.time()
         
         # Import timeout utility
-        from utils import run_with_timeout, TimeoutException
+        from .api_utils import run_with_timeout, TimeoutException
         
         try:
             # Run OCR with 60-second timeout
