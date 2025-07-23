@@ -45,8 +45,8 @@ python test/test_api.py
 # Test deployment readiness on port 8080
 python test/test_deployment.py
 
-# Test Qwen VL integration
-python test/test_qwen_vl_integration.py
+# Test Qwen VL
+python test/test_qwen_vl.py
 
 # Run a single test function
 python -m pytest test/test_api.py::test_single_ocr -v
@@ -123,10 +123,10 @@ Port 8080:
 ### Key Components
 
 - **API Server** (`api/main.py`): FastAPI with auto-loaded extensions
-- **Qwen VL Processor** (`qwen_vl_integration/src/extractors/qwen_vl_processor.py`): Vision-language processing
-- **Spatial Reasoner** (`qwen_vl_integration/src/extractors/spatial_reasoner.py`): Layout understanding
-- **OCR Post-processor** (`qwen_vl_integration/src/utils/ocr_postprocessor.py`): Text cleanup
-- **Pydantic Models** (`qwen_vl_integration/src/models/`): Type-safe bill schemas
+- **Qwen VL Processor** (`api/extractors/qwen_vl_processor.py`): Vision-language processing
+- **Spatial Reasoner** (`api/extractors/spatial_reasoner.py`): Layout understanding
+- **OCR Post-processor** (`api/utils/ocr_postprocessor.py`): Text cleanup
+- **Pydantic Models** (`api/models/`): Type-safe bill schemas
 - **Ground Truth** (`benchmark_output_ground_truth/`): Evaluation data
 
 ## Performance & Requirements

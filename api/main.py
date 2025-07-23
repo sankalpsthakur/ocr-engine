@@ -35,7 +35,7 @@ except ImportError:
 setup_logging("ocr-engine")
 logger = get_logger(__name__)
 
-# Add parent directory to sys.path for qwen_vl_integration imports
+# Add parent directory to sys.path for imports
 parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
