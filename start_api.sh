@@ -72,7 +72,7 @@ echo "Starting services..."
 echo "Starting Surya OCR service on port 8001..."
 cd services/surya
 source ../../surya_env/bin/activate
-nohup python surya_service.py > surya.log 2>&1 &
+nohup python surya_service.py > "$SCRIPT_DIR/services/surya/surya.log" 2>&1 &
 echo $! > surya.pid
 cd ../..
 
@@ -80,14 +80,14 @@ cd ../..
 echo "Starting Qwen VL service on port 8002..."
 cd services/qwen
 source ../../qwen_env/bin/activate
-nohup python qwen_service.py > qwen.log 2>&1 &
+nohup python qwen_service.py > "$SCRIPT_DIR/services/qwen/qwen.log" 2>&1 &
 echo $! > qwen.pid
 cd ../..
 
 # Start API Gateway (port 8080)
 echo "Starting API Gateway on port 8080..."
 source gateway_env/bin/activate
-nohup python api_gateway.py > gateway.log 2>&1 &
+nohup python api_gateway.py > "$SCRIPT_DIR/gateway.log" 2>&1 &
 echo $! > gateway.pid
 
 # Wait for services to start

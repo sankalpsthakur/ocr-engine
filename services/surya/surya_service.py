@@ -24,9 +24,11 @@ import uvicorn
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import Surya OCR (just the main function)
+# Import Surya OCR components
 try:
     from surya.ocr import run_ocr
+    from surya.detection import load_model as load_det_model, load_processor as load_det_processor
+    from surya.recognition import load_model as load_rec_model, load_processor as load_rec_processor
     logger.info("✓ Surya OCR imported successfully")
 except ImportError as e:
     logger.error(f"✗ Failed to import Surya OCR: {e}")
@@ -35,9 +37,10 @@ except ImportError as e:
 app = FastAPI(title="Surya OCR Service", version="1.0.0")
 
 # Global models
-detector = None
-processor = None
-tokenizer = None
+det_model = None
+det_processor = None
+rec_model = None
+rec_processor = None
 
 class OCRResponse(BaseModel):
     filename: str
@@ -50,8 +53,24 @@ class OCRResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load Surya OCR models on startup"""
-    logger.info("Surya OCR service ready - models will be loaded on first request")
-    logger.info("✓ Surya OCR service started successfully")
+    global det_model, det_processor, rec_model, rec_processor
+    
+    logger.info("Loading Surya OCR models...")
+    try:
+        # Load detection models
+        det_model = load_det_model()
+        det_processor = load_det_processor()
+        logger.info("✓ Detection models loaded successfully")
+        
+        # Load recognition models
+        rec_model = load_rec_model()
+        rec_processor = load_rec_processor()
+        logger.info("✓ Recognition models loaded successfully")
+        
+        logger.info("✓ Surya OCR service started successfully")
+    except Exception as e:
+        logger.error(f"✗ Failed to load Surya OCR models: {e}")
+        raise
 
 @app.get("/health")
 async def health_check():
@@ -82,9 +101,9 @@ async def perform_ocr(file: UploadFile = File(...)):
             if image.mode == 'RGBA':
                 image = image.convert('RGB')
             
-            # Run Surya OCR
+            # Run Surya OCR with loaded models
             langs = [["en", "ar"]]  # For DEWA/SEWA bills - array of language lists
-            results = run_ocr([image], langs)
+            results = run_ocr([image], langs, det_model, det_processor, rec_model, rec_processor)
             
             # Extract text from results
             if results and len(results) > 0:
