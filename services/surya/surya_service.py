@@ -27,8 +27,10 @@ logger = logging.getLogger(__name__)
 # Import Surya OCR components
 try:
     from surya.ocr import run_ocr
-    from surya.detection import load_model as load_det_model, load_processor as load_det_processor
-    from surya.recognition import load_model as load_rec_model, load_processor as load_rec_processor
+    from surya.model.detection.segformer import load_model as load_det_model, load_processor as load_det_processor
+    from surya.model.recognition.model import load_model as load_rec_model
+    from surya.model.recognition.processor import load_processor as load_rec_processor
+
     logger.info("✓ Surya OCR imported successfully")
 except ImportError as e:
     logger.error(f"✗ Failed to import Surya OCR: {e}")

@@ -63,8 +63,8 @@ async def startup_event():
         # Load model with proper configuration (force CPU for stability)
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_name,
-            torch_dtype=torch.float32,
-            device_map="cpu"
+            torch_dtype=torch.float16,
+            device_map="cuda"
         )
         
         # Load processor
@@ -214,27 +214,9 @@ Return as structured JSON."""
                     if hasattr(value, 'device'):
                         logger.info(f"[{request_id}] inputs['{key}'] device: {value.device}")
             
-            # Ensure inputs are on CPU
-            logger.info(f"[{request_id}] Moving inputs to CPU...")
-            if isinstance(inputs, dict):
-                # Handle dict-style inputs
-                for key in inputs:
-                    if hasattr(inputs[key], 'to'):
-                        logger.info(f"[{request_id}] Moving inputs['{key}'] to CPU")
-                        inputs[key] = inputs[key].to('cpu')
-                    else:
-                        logger.info(f"[{request_id}] inputs['{key}'] doesn't have 'to' method, skipping")
-            else:
-                # Handle object-style inputs
-                if hasattr(inputs, 'input_ids') and hasattr(inputs.input_ids, 'to'):
-                    logger.info(f"[{request_id}] Moving inputs.input_ids to CPU")
-                    inputs.input_ids = inputs.input_ids.to('cpu')
-                if hasattr(inputs, 'attention_mask') and hasattr(inputs.attention_mask, 'to'): 
-                    logger.info(f"[{request_id}] Moving inputs.attention_mask to CPU")
-                    inputs.attention_mask = inputs.attention_mask.to('cpu')
-                if hasattr(inputs, 'pixel_values') and hasattr(inputs.pixel_values, 'to'):
-                    logger.info(f"[{request_id}] Moving inputs.pixel_values to CPU")
-                    inputs.pixel_values = inputs.pixel_values.to('cpu')
+            # Ensure inputs are on the same device as the model (CUDA)
+            logger.info(f"[{request_id}] Moving inputs to CUDA...")
+            inputs = inputs.to('cuda')
             
             logger.info(f"[{request_id}] Starting model generation...")
             # Generate response

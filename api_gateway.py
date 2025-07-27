@@ -118,7 +118,7 @@ async def qwen_vl_process(
 ):
     """Process document with Qwen 2.5-VL 3B Instruct"""
     try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        async with httpx.AsyncClient(timeout=600.0) as client:
             files = {"file": (file.filename, await file.read(), file.content_type)}
             params = {"resource_type": resource_type, "enable_reasoning": enable_reasoning}
             
