@@ -39,7 +39,7 @@ class OrientationHandler:
             image = ImageOps.exif_transpose(image)
             logger.info("Applied EXIF orientation correction")
         except Exception as e:
-            logger.debug(f"No EXIF orientation data or error: {e}")
+            logger.debug(f"No EXIF orientation data or error: {type(e).__name__}: {e}")
         
         return image
     
@@ -104,7 +104,7 @@ class OrientationHandler:
                         logger.warning(f"Surya OCR failed for angle {angle}°: HTTP {response.status_code}")
                         
                 except Exception as e:
-                    logger.warning(f"Error checking angle {angle}°: {e}")
+                    logger.warning(f"Error checking angle {angle}°: {type(e).__name__}: {str(e)}", exc_info=True)
         
         logger.info(f"Best orientation via Surya: {best_angle}° (confidence: {best_confidence:.2f})")
         return best_angle, best_confidence
@@ -170,7 +170,7 @@ class OrientationHandler:
                             best_angle = angle
                             
                 except Exception as e:
-                    logger.debug(f"OCR failed for angle {angle}°: {e}")
+                    logger.debug(f"OCR failed for angle {angle}°: {type(e).__name__}: {e}")
         
         logger.info(f"Utility bill orientation: {best_angle}° (header matches: {max_header_matches})")
         return best_angle
@@ -236,7 +236,7 @@ class OrientationHandler:
                         angle = 0
                         
             except Exception as e:
-                logger.warning(f"Auto-orientation failed: {e}")
+                logger.warning(f"Auto-orientation failed: {type(e).__name__}: {e}", exc_info=True)
                 angle = 0
         
         # Apply rotation if needed

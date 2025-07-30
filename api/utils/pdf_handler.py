@@ -45,12 +45,20 @@ class PDFHandler:
             List of tuples (image_bytes, page_filename)
         """
         try:
-            # Primary method: pdf2image
+            # Try pdf2image first (if poppler is available, it's often faster)
             return await PDFHandler._convert_with_pdf2image(file_content, filename, dpi, auto_orient)
         except Exception as e:
-            logger.warning(f"pdf2image conversion failed: {e}. Trying PyMuPDF...")
+            # Check if it's a poppler not found error
+            error_msg = str(e).lower()
+            if "poppler" in error_msg or "page count" in error_msg:
+                # This is expected if poppler isn't installed - log at debug level
+                logger.debug(f"pdf2image conversion failed (poppler not installed): {e}. Trying PyMuPDF...")
+            else:
+                # Other errors should be logged as warnings
+                logger.warning(f"pdf2image conversion failed: {e}. Trying PyMuPDF...")
+            
             try:
-                # Fallback method: PyMuPDF
+                # Fallback method: PyMuPDF (no system dependencies required)
                 return await PDFHandler._convert_with_pymupdf(file_content, filename, dpi, auto_orient)
             except Exception as e2:
                 logger.error(f"All PDF conversion methods failed: {e2}")
