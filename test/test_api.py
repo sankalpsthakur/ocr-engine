@@ -47,6 +47,44 @@ def test_single_ocr():
         print(f"Error: {response.text}")
     print()
 
+def test_pdf_ocr():
+    """Test PDF file OCR"""
+    print("Testing PDF file OCR...")
+    
+    # Use Bill-4.pdf as test file
+    test_file = Path(__file__).parent.parent / "test_bills" / "Bill-4.pdf"
+    
+    if not test_file.exists():
+        print(f"Test file not found: {test_file}")
+        return
+    
+    with open(test_file, 'rb') as f:
+        files = {'file': (test_file.name, f, 'application/pdf')}
+        start_time = time.time()
+        response = requests.post(f"{API_BASE}/ocr", files=files)
+        end_time = time.time()
+    
+    print(f"Status: {response.status_code}")
+    print(f"Processing time: {end_time - start_time:.2f}s")
+    
+    if response.status_code == 200:
+        result = response.json()
+        print(f"OCR Status: {result['status']}")
+        if result['text']:
+            print(f"Text length: {len(result['text'])} characters")
+            # Check for multi-page markers
+            if "[Page " in result['text']:
+                print("Multi-page PDF detected")
+                # Count pages
+                page_count = result['text'].count("[Page ")
+                print(f"Number of pages: {page_count}")
+            print(f"First 200 chars: {result['text'][:200]}...")
+        if result.get('confidence'):
+            print(f"Confidence: {result['confidence']:.2f}")
+    else:
+        print(f"Error: {response.text}")
+    print()
+
 def test_batch_ocr():
     """Test batch OCR"""
     print("Testing batch OCR...")
@@ -95,6 +133,7 @@ def main():
     try:
         test_health()
         test_single_ocr()
+        test_pdf_ocr()
         test_batch_ocr()
     except requests.exceptions.ConnectionError:
         print("ERROR: Cannot connect to API at http://localhost:8080")

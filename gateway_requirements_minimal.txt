@@ -1,4 +1,4 @@
-# API Gateway Requirements
+# API Gateway Requirements - Minimal for testing
 # Lightweight gateway with minimal dependencies
 
 fastapi==0.104.1
@@ -7,7 +7,6 @@ python-multipart==0.0.6
 pydantic>=2.5.3,<3.0.0
 httpx>=0.24.0  # For service communication
 
-# PDF processing
+# PDF processing - minimal
 pdf2image==1.16.3
-pymupdf==1.24.0  # Fallback PDF handler (newer version)
 Pillow>=10.0.0  # Image processing

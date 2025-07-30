@@ -9,6 +9,7 @@ OCR Engine combining Surya OCR (99.9% accuracy) with Qwen Vision-Language models
 - **Vision-Language Processing**: Qwen 2.5-VL 3B Instruct for spatial reasoning
 - **Production-ready**: Docker deployment with health checks
 - **Multi-language support**: Arabic and English text processing
+- **PDF Support**: Automatic PDF to image conversion for seamless processing
 
 ## 📁 Repository Structure
 
@@ -64,11 +65,13 @@ docker build -t ocr-engine .
 docker compose up
 
 # 6. Test API endpoints (local or Docker)
-# Basic OCR (raw text extraction)
+# Basic OCR - supports both images and PDFs
 curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr
+curl -X POST -F 'file=@test_bills/Bill-4.pdf' http://localhost:8080/ocr
 
-# Qwen VL processing with spatial reasoning (PRIMARY TEST)
+# Qwen VL processing with spatial reasoning - supports both formats
 curl -X POST -F 'file=@test_bills/DEWA.png' http://localhost:8080/ocr/qwen-vl/process
+curl -X POST -F 'file=@test_bills/Bill-4.pdf' http://localhost:8080/ocr/qwen-vl/process
 
 # Process bill as water resource type
 curl -X POST -F 'file=@test_bills/DEWA.png' \
@@ -108,17 +111,24 @@ curl -X POST -F 'file=@test_bills/DEWA.png' \
 
 ## 🔧 API Endpoints
 
+All endpoints support both **images** (PNG, JPG) and **PDF** files. PDFs are automatically converted to images before processing.
+
 ```
 Port 8080:
 ├── /health                           # API health check
-├── /ocr                             # Basic OCR endpoint
-├── /ocr/batch                       # Batch processing (max 10 files)
+├── /ocr                             # Basic OCR endpoint (images & PDFs)
+├── /ocr/batch                       # Batch processing (max 10 files, mixed formats)
 ├── /ocr/qwen-vl/
 │   ├── /health                      # Qwen VL service health
 │   ├── /process                     # Full pipeline with spatial reasoning
 │   ├── /extract-text                # OCR with post-processing only
 │   └── /schema/{provider}           # Get DEWA/SEWA schemas
 ```
+
+**PDF Processing Notes:**
+- Single-page PDFs are processed like images
+- Multi-page PDFs: All pages extracted for `/ocr`, first page only for `/ocr/qwen-vl/process`
+- Automatic fallback from pdf2image to PyMuPDF if needed
 
 ## 📝 Notes
 
