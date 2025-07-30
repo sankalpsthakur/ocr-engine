@@ -92,13 +92,8 @@ class PDFHandler:
                 if auto_orient:
                     # Check if this appears to be a utility bill based on filename
                     is_utility = any(provider in filename.upper() for provider in ['DEWA', 'SEWA'])
-                    # Note: This is sync context, so we create a new event loop
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    image = loop.run_until_complete(
-                        OrientationHandler.auto_orient(image, is_utility_bill=is_utility)
-                    )
-                    loop.close()
+                    # We're already in an async context, so we can await directly
+                    image = await OrientationHandler.auto_orient(image, is_utility_bill=is_utility)
                 
                 # Convert PIL Image to bytes
                 img_buffer = io.BytesIO()
@@ -168,13 +163,8 @@ class PDFHandler:
                     is_utility = any(provider in filename.upper() for provider in ['DEWA', 'SEWA'])
                     
                     # Apply auto-orientation
-                    # Note: This is sync context, so we create a new event loop
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    pil_image = loop.run_until_complete(
-                        OrientationHandler.auto_orient(pil_image, is_utility_bill=is_utility)
-                    )
-                    loop.close()
+                    # We're already in an async context, so we can await directly
+                    pil_image = await OrientationHandler.auto_orient(pil_image, is_utility_bill=is_utility)
                     
                     # Convert back to bytes
                     img_buffer = io.BytesIO()
