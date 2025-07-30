@@ -88,7 +88,8 @@ async def health_check():
 async def process_document(
     file: UploadFile = File(...),
     resource_type: str = Query(default="utility", description="Type of resource (water, energy, utility)"),
-    enable_reasoning: bool = Query(default=True, description="Enable spatial reasoning")
+    enable_reasoning: bool = Query(default=True, description="Enable spatial reasoning"),
+    ocr_text: str = Query(default="", description="Pre-extracted OCR text from Surya")
 ):
     """Process document with Qwen 2.5-VL 3B Instruct for structured extraction"""
     start_time = time.time()
@@ -129,17 +130,22 @@ async def process_document(
             
             # Create prompt based on resource type
             logger.info(f"[{request_id}] Creating prompt for resource type: {resource_type}")
+            logger.info(f"[{request_id}] OCR text provided: {len(ocr_text)} characters")
+            
+            # Include OCR text in prompt if available
+            ocr_context = f"\n\nOCR extracted text:\n{ocr_text}\n\n" if ocr_text else ""
+            
             if resource_type == "water":
-                prompt = """Extract water utility bill information including:
+                prompt = f"""{ocr_context}Extract water utility bill information from the image and OCR text including:
 - Account number
 - Billing period
 - Water consumption in gallons/cubic meters
 - Total amount due
 - Due date
 - Service address
-Return as structured JSON."""
+Use both the visual information and OCR text to ensure accuracy. Return as structured JSON."""
             elif resource_type == "energy":
-                prompt = """Extract energy utility bill information including:
+                prompt = f"""{ocr_context}Extract energy utility bill information from the image and OCR text including:
 - Account number
 - Billing period  
 - Energy consumption in kWh
@@ -147,9 +153,9 @@ Return as structured JSON."""
 - Due date
 - Service address
 - Carbon emissions data if available
-Return as structured JSON."""
+Use both the visual information and OCR text to ensure accuracy. Return as structured JSON."""
             else:
-                prompt = """Extract all utility bill information including account details, consumption, charges, and dates. Return as structured JSON."""
+                prompt = f"""{ocr_context}Extract all utility bill information from the image and OCR text including account details, consumption, charges, and dates. Use both the visual information and OCR text to ensure accuracy. Return as structured JSON."""
             
             logger.info(f"[{request_id}] Prompt created. Length: {len(prompt)} characters")
             

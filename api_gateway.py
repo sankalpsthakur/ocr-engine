@@ -296,9 +296,30 @@ async def qwen_vl_process(
             if len(file_items) > 1:
                 logger.info(f"Processing first page of {len(file_items)}-page PDF with Qwen VL")
             
+            # First, get OCR text from Surya
+            ocr_text = ""
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    files = {"file": (filename, content, content_type)}
+                    ocr_response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files)
+                    
+                    if ocr_response.status_code == 200:
+                        ocr_result = ocr_response.json()
+                        ocr_text = ocr_result.get("text", "")
+                        logger.info(f"Extracted OCR text length: {len(ocr_text)}")
+                    else:
+                        logger.warning(f"Surya OCR failed with status {ocr_response.status_code}")
+            except Exception as e:
+                logger.warning(f"Surya OCR error (will continue with image-only): {e}")
+            
+            # Now send both image and OCR text to Qwen
             async with httpx.AsyncClient(timeout=600.0) as client:
                 files = {"file": (filename, content, content_type)}
-                params = {"resource_type": resource_type, "enable_reasoning": enable_reasoning}
+                params = {
+                    "resource_type": resource_type, 
+                    "enable_reasoning": enable_reasoning,
+                    "ocr_text": ocr_text  # Add OCR text as parameter
+                }
                 
                 response = await client.post(
                     f"{QWEN_SERVICE_URL}/process", 
