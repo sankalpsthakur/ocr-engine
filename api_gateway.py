@@ -18,9 +18,10 @@ from pydantic import BaseModel
 import httpx
 import uvicorn
 
-# Import PDF handler
+# Import PDF handler and orientation handler
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from api.utils.pdf_handler import PDFHandler
+from api.utils.orientation_handler import OrientationHandler
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -93,9 +94,13 @@ async def validate_file(file: UploadFile) -> None:
         detail=f"File must be an image or PDF. Received: {content_type}"
     )
 
-async def preprocess_file(file: UploadFile) -> List[Tuple[bytes, str, str]]:
+async def preprocess_file(file: UploadFile, auto_orient: bool = True) -> List[Tuple[bytes, str, str]]:
     """
-    Preprocess file - convert PDF to images if needed
+    Preprocess file - convert PDF to images if needed and fix orientation
+    
+    Args:
+        file: Uploaded file
+        auto_orient: Whether to automatically fix orientation
     
     Returns:
         List of tuples (content_bytes, filename, content_type)
@@ -103,14 +108,37 @@ async def preprocess_file(file: UploadFile) -> List[Tuple[bytes, str, str]]:
     content = await file.read()
     await file.seek(0)  # Reset file pointer
     
-    # If it's already an image, return as-is
+    # If it's already an image, apply orientation correction
     if file.content_type and file.content_type.startswith('image/'):
+        if auto_orient:
+            logger.info(f"Checking orientation for image {file.filename}...")
+            # Check if this appears to be a utility bill
+            is_utility = any(provider in (file.filename or "").upper() for provider in ['DEWA', 'SEWA'])
+            
+            # Apply orientation correction
+            from PIL import Image
+            import io
+            
+            image = Image.open(io.BytesIO(content))
+            # Set Surya service URL
+            OrientationHandler.SURYA_SERVICE_URL = SURYA_SERVICE_URL
+            image = await OrientationHandler.auto_orient(image, is_utility_bill=is_utility)
+            
+            # Convert back to bytes
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format='PNG' if file.content_type == 'image/png' else 'JPEG')
+            content = img_buffer.getvalue()
+            
         return [(content, file.filename, file.content_type)]
     
-    # If it's a PDF, convert to images
+    # If it's a PDF, convert to images (orientation handled in PDFHandler)
     if PDFHandler.is_pdf(file.content_type or "", file.filename or ""):
         logger.info(f"Converting PDF {file.filename} to images...")
-        images = await PDFHandler.convert_to_images(content, file.filename or "document.pdf")
+        images = await PDFHandler.convert_to_images(
+            content, 
+            file.filename or "document.pdf",
+            auto_orient=auto_orient
+        )
         return [(img_bytes, img_name, "image/png") for img_bytes, img_name in images]
     
     # This shouldn't happen due to validation, but just in case

@@ -10,6 +10,7 @@ from typing import List, Tuple, Optional, Union
 from pathlib import Path
 from PIL import Image
 import io
+from .orientation_handler import OrientationHandler
 
 logger = logging.getLogger(__name__)
 
@@ -28,27 +29,29 @@ class PDFHandler:
     async def convert_to_images(
         file_content: bytes, 
         filename: str,
-        dpi: int = 200
+        dpi: int = 200,
+        auto_orient: bool = True
     ) -> List[Tuple[bytes, str]]:
         """
-        Convert PDF to images with fallback mechanisms
+        Convert PDF to images with fallback mechanisms and orientation correction
         
         Args:
             file_content: PDF file content as bytes
             filename: Original filename
             dpi: DPI for image conversion
+            auto_orient: Whether to automatically fix orientation
             
         Returns:
             List of tuples (image_bytes, page_filename)
         """
         try:
             # Primary method: pdf2image
-            return await PDFHandler._convert_with_pdf2image(file_content, filename, dpi)
+            return await PDFHandler._convert_with_pdf2image(file_content, filename, dpi, auto_orient)
         except Exception as e:
             logger.warning(f"pdf2image conversion failed: {e}. Trying PyMuPDF...")
             try:
                 # Fallback method: PyMuPDF
-                return await PDFHandler._convert_with_pymupdf(file_content, filename, dpi)
+                return await PDFHandler._convert_with_pymupdf(file_content, filename, dpi, auto_orient)
             except Exception as e2:
                 logger.error(f"All PDF conversion methods failed: {e2}")
                 raise Exception(f"Failed to convert PDF: {str(e2)}")
@@ -57,7 +60,8 @@ class PDFHandler:
     async def _convert_with_pdf2image(
         file_content: bytes, 
         filename: str,
-        dpi: int
+        dpi: int,
+        auto_orient: bool = True
     ) -> List[Tuple[bytes, str]]:
         """Convert PDF using pdf2image library"""
         try:
@@ -84,6 +88,18 @@ class PDFHandler:
             base_name = Path(filename).stem
             
             for i, image in enumerate(images):
+                # Apply orientation correction if enabled
+                if auto_orient:
+                    # Check if this appears to be a utility bill based on filename
+                    is_utility = any(provider in filename.upper() for provider in ['DEWA', 'SEWA'])
+                    # Note: This is sync context, so we create a new event loop
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    image = loop.run_until_complete(
+                        OrientationHandler.auto_orient(image, is_utility_bill=is_utility)
+                    )
+                    loop.close()
+                
                 # Convert PIL Image to bytes
                 img_buffer = io.BytesIO()
                 image.save(img_buffer, format='PNG')
@@ -105,7 +121,8 @@ class PDFHandler:
     async def _convert_with_pymupdf(
         file_content: bytes, 
         filename: str,
-        dpi: int
+        dpi: int,
+        auto_orient: bool = True
     ) -> List[Tuple[bytes, str]]:
         """Convert PDF using PyMuPDF as fallback"""
         try:
@@ -127,11 +144,42 @@ class PDFHandler:
             for page_num in range(pdf_document.page_count):
                 page = pdf_document[page_num]
                 
-                # Render page to pixmap
-                pix = page.get_pixmap(matrix=mat, alpha=False)
+                # Check for page rotation in PDF metadata
+                rotation = page.rotation
                 
-                # Convert to PIL Image
+                # Apply rotation correction if needed
+                if rotation != 0:
+                    # Create rotation matrix that includes both zoom and rotation correction
+                    rotation_mat = fitz.Matrix(zoom, zoom).prerotate(-rotation)
+                    pix = page.get_pixmap(matrix=rotation_mat, alpha=False)
+                    logger.info(f"Page {page_num+1} had {rotation}° rotation - corrected")
+                else:
+                    # No rotation needed, just zoom
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+                
+                # Convert to PIL Image for additional orientation correction
                 img_data = pix.tobytes("png")
+                
+                if auto_orient:
+                    # Convert to PIL Image for orientation processing
+                    pil_image = Image.open(io.BytesIO(img_data))
+                    
+                    # Check if this appears to be a utility bill
+                    is_utility = any(provider in filename.upper() for provider in ['DEWA', 'SEWA'])
+                    
+                    # Apply auto-orientation
+                    # Note: This is sync context, so we create a new event loop
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    pil_image = loop.run_until_complete(
+                        OrientationHandler.auto_orient(pil_image, is_utility_bill=is_utility)
+                    )
+                    loop.close()
+                    
+                    # Convert back to bytes
+                    img_buffer = io.BytesIO()
+                    pil_image.save(img_buffer, format='PNG')
+                    img_data = img_buffer.getvalue()
                 
                 # Create filename for this page
                 page_filename = f"{base_name}_page_{page_num+1}.png"
