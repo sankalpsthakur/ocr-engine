@@ -1,33 +1,83 @@
 version: '3.8'
 
 services:
-  ocr-engine:
+  surya-ocr:
     build:
-      context: .
+      context: ./services/surya
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    deploy:
-      resources:
-        limits:
-          memory: 24G
-        reservations:
-          memory: 16G
-    restart: unless-stopped
+    image: ocr-engine/surya:latest
+    container_name: surya-ocr
+    networks:
+      - ocr-network
+    volumes:
+      - model_cache:/app/.cache
     environment:
-      - PORT=8080
       - PYTHONUNBUFFERED=1
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
       - HF_HOME=/app/.cache/huggingface
-      - TORCH_HOME=/app/.cache/torch
-      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
-      - HF_HUB_OFFLINE=0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 3
+    restart: unless-stopped
+
+  qwen-vl:
+    build:
+      context: ./services/qwen
+      dockerfile: Dockerfile
+    image: ocr-engine/qwen:latest
+    container_name: qwen-vl
+    networks:
+      - ocr-network
     volumes:
-      # Mount test bills for testing
-      - ./test_bills:/app/test_bills:ro
+      - model_cache:/app/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      - HF_HOME=/app/.cache/huggingface
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 3
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ocr-engine/gateway:latest
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - ocr-network
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8080
+      - SURYA_SERVICE_URL=http://surya-ocr:8001
+      - QWEN_SERVICE_URL=http://qwen-vl:8002
+      - SERVICE_STARTUP_RETRIES=20
+      - SERVICE_STARTUP_DELAY=5
+    depends_on:
+      - surya-ocr
+      - qwen-vl
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
+      start_period: 60s
       retries: 3
-      start_period: 300s
+    restart: unless-stopped
+
+networks:
+  ocr-network:
+    driver: bridge
+
+volumes:
+  model_cache:
+    driver: local
