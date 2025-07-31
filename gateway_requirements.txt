@@ -11,3 +11,6 @@ httpx>=0.24.0  # For service communication
 pdf2image==1.16.3
 pymupdf==1.26.3  # Fallback PDF handler (latest stable version)
 Pillow>=10.0.0  # Image processing
+
+# Additional utilities
+numpy>=1.24.0  # Required for orientation handler
