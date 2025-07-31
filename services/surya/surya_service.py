@@ -100,13 +100,41 @@ async def perform_ocr(file: UploadFile = File(...)):
         try:
             # Load image
             image = Image.open(tmp_path)
+            
+            # Handle EXIF orientation
+            try:
+                exif = image.getexif()
+                orientation_tag = 274  # EXIF orientation tag
+                if orientation_tag in exif:
+                    orientation = exif[orientation_tag]
+                    
+                    # Rotate image based on EXIF orientation
+                    if orientation == 2:
+                        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                    elif orientation == 3:
+                        image = image.rotate(180, expand=True)
+                    elif orientation == 4:
+                        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                    elif orientation == 5:
+                        image = image.rotate(-90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                    elif orientation == 6:
+                        image = image.rotate(-90, expand=True)
+                    elif orientation == 7:
+                        image = image.rotate(90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                    elif orientation == 8:
+                        image = image.rotate(90, expand=True)
+                    
+                    logger.info(f"Applied EXIF orientation correction: {orientation}")
+            except Exception as e:
+                logger.warning(f"Could not process EXIF orientation: {e}")
+            
             if image.mode == 'RGBA':
                 image = image.convert('RGB')
             
             # Run Surya OCR with loaded models
             langs = [["en", "ar"]]  # For DEWA/SEWA bills - array of language lists
             results = run_ocr([image], langs, det_model, det_processor, rec_model, rec_processor)
-            
+
             # Extract text from results
             if results and len(results) > 0:
                 result = results[0]

@@ -19,10 +19,11 @@ from pydantic import BaseModel
 import httpx
 import uvicorn
 
-# Import PDF handler and orientation handler
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from api.utils.pdf_handler import PDFHandler
+from api.utils.image_compressor import compress_image_for_qwen, compress_image_for_ocr
 from api.utils.orientation_handler import OrientationHandler
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -224,6 +225,14 @@ async def basic_ocr(file: UploadFile = File(...)):
             # Single image or single-page PDF
             content, filename, content_type = file_items[0]
             
+            # Compress image if needed (> 1MB)
+            original_size_kb = len(content) / 1024
+            content, content_type = compress_image_for_ocr(content, filename, content_type)
+            compressed_size_kb = len(content) / 1024
+            
+            if compressed_size_kb < original_size_kb:
+                logger.info(f"Image compressed for OCR from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+            
             async with httpx.AsyncClient(timeout=120.0) as client:
                 files = {"file": (filename, content, content_type)}
                 response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files)
@@ -242,6 +251,14 @@ async def basic_ocr(file: UploadFile = File(...)):
             
             async with httpx.AsyncClient(timeout=300.0) as client:
                 for content, filename, content_type in file_items:
+                    # Compress image if needed (> 1MB)
+                    original_size_kb = len(content) / 1024
+                    content, content_type = compress_image_for_ocr(content, filename, content_type)
+                    compressed_size_kb = len(content) / 1024
+                    
+                    if compressed_size_kb < original_size_kb:
+                        logger.info(f"Page {page_count + 1} compressed for OCR from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+                    
                     files = {"file": (filename, content, content_type)}
                     response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files)
                     
@@ -297,33 +314,50 @@ async def qwen_vl_process(
                 logger.info(f"Processing first page of {len(file_items)}-page PDF with Qwen VL")
             
             # First, get OCR text from Surya
+            logger.info(f"Getting OCR text for Qwen VL processing...")
             ocr_text = ""
-            try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    files = {"file": (filename, content, content_type)}
-                    ocr_response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files)
-                    
-                    if ocr_response.status_code == 200:
-                        ocr_result = ocr_response.json()
-                        ocr_text = ocr_result.get("text", "")
-                        logger.info(f"Extracted OCR text length: {len(ocr_text)}")
-                    else:
-                        logger.warning(f"Surya OCR failed with status {ocr_response.status_code}")
-            except Exception as e:
-                logger.warning(f"Surya OCR error (will continue with image-only): {e}")
             
-            # Now send both image and OCR text to Qwen
+            # Compress image if needed for OCR (> 1MB)
+            ocr_content = content
+            ocr_content_type = content_type
+            original_size_kb = len(ocr_content) / 1024
+            ocr_content, ocr_content_type = compress_image_for_ocr(ocr_content, filename, ocr_content_type)
+            compressed_size_kb = len(ocr_content) / 1024
+            
+            if compressed_size_kb < original_size_kb:
+                logger.info(f"Image compressed for OCR from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                files = {"file": (filename, ocr_content, ocr_content_type)}
+                ocr_response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files)
+                
+                if ocr_response.status_code == 200:
+                    ocr_result = ocr_response.json()
+                    if ocr_result.get("status") == "success":
+                        ocr_text = ocr_result.get("text", "")
+                        logger.info(f"OCR text extracted: {len(ocr_text)} characters")
+                    else:
+                        logger.warning(f"OCR extraction failed: {ocr_result.get('error', 'Unknown error')}")
+                else:
+                    logger.warning(f"OCR service returned status {ocr_response.status_code}")
+            
+            # Compress image if needed (> 512KB)
+            original_size_kb = len(content) / 1024
+            content, content_type = compress_image_for_qwen(content, filename, content_type)
+            compressed_size_kb = len(content) / 1024
+            
+            if compressed_size_kb < original_size_kb:
+                logger.info(f"Image compressed from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+            
             async with httpx.AsyncClient(timeout=600.0) as client:
                 files = {"file": (filename, content, content_type)}
-                params = {
-                    "resource_type": resource_type, 
-                    "enable_reasoning": enable_reasoning,
-                    "ocr_text": ocr_text  # Add OCR text as parameter
-                }
+                data = {"ocr_text": ocr_text}  # Pass OCR text as form data
+                params = {"resource_type": resource_type, "enable_reasoning": enable_reasoning}
                 
                 response = await client.post(
                     f"{QWEN_SERVICE_URL}/process", 
-                    files=files, 
+                    files=files,
+                    data=data,
                     params=params
                 )
                 
@@ -396,6 +430,14 @@ async def batch_ocr(files: List[UploadFile] = File(...)):
                 # Single image or single-page PDF
                 content, filename, content_type = file_items[0]
                 
+                # Compress image if needed (> 1MB)
+                original_size_kb = len(content) / 1024
+                content, content_type = compress_image_for_ocr(content, filename, content_type)
+                compressed_size_kb = len(content) / 1024
+                
+                if compressed_size_kb < original_size_kb:
+                    logger.info(f"Batch file {file.filename} compressed for OCR from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+                
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     files_data = {"file": (filename, content, content_type)}
                     response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files_data)
@@ -419,6 +461,14 @@ async def batch_ocr(files: List[UploadFile] = File(...)):
                 
                 async with httpx.AsyncClient(timeout=300.0) as client:
                     for content, filename, content_type in file_items:
+                        # Compress image if needed (> 1MB)
+                        original_size_kb = len(content) / 1024
+                        content, content_type = compress_image_for_ocr(content, filename, content_type)
+                        compressed_size_kb = len(content) / 1024
+                        
+                        if compressed_size_kb < original_size_kb:
+                            logger.info(f"Batch file {file.filename} page {page_count + 1} compressed for OCR from {original_size_kb:.1f}KB to {compressed_size_kb:.1f}KB")
+                        
                         files_data = {"file": (filename, content, content_type)}
                         response = await client.post(f"{SURYA_SERVICE_URL}/ocr", files=files_data)
                         
